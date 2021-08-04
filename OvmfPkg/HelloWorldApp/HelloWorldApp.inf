@@ -1,0 +1,23 @@
+[Defines]
+  INF_VERSION                    = 1.25
+  BASE_NAME                      = HelloWorldApp
+  FILE_GUID                      = ba0fdd3b-a6b0-4a69-a25e-5354fe681007
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = ShellCEntryLib
+
+[Sources]
+  test.c
+
+[Packages]
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  OvmfPkg/OvmfPkg.dec
+
+[LibraryClasses]
+ShellCEntryLib
+UefiLib
+IoLib
+
+[Protocols]
+gEfiGraphicsOutputProtocolGuid

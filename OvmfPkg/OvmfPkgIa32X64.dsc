@@ -872,6 +872,11 @@
   MdeModulePkg/Bus/Isa/Ps2KeyboardDxe/Ps2KeyboardDxe.inf
 
   #
+  # GraphicAPPTest
+  #
+  OvmfPkg/HelloWorldApp/HelloWorldApp.inf
+
+  #
   # SMBIOS Support
   #
   MdeModulePkg/Universal/SmbiosDxe/SmbiosDxe.inf {
