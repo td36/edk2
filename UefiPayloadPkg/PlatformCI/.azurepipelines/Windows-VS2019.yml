@@ -1,0 +1,63 @@
+## @file
+# Azure Pipeline build file for building a platform.
+#
+# Platform: UefiPayloadPkg
+# OS: Windows
+# Toolchain: VS2019
+#
+# Copyright (c) Microsoft Corporation.
+# Copyright (c) 2020, Intel Corporation. All rights reserved.
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+trigger:
+  - master
+  - stable/*
+pr:
+  - master
+  - stable/*
+
+jobs:
+  - job: Platform_CI
+    variables:
+      package: 'UefiPayloadPkg'
+      vm_image: 'windows-latest'
+      should_run: true
+      run_flags: "MAKE_STARTUP_NSH=TRUE"
+
+    #Use matrix to speed up the build process
+    strategy:
+        matrix:
+          UefiPayloadPkg_X64_DEBUG:
+            Build.File: "$(package)/PlatformCI/PlatformBuild.py"
+            Build.Arch: "X64"
+            Build.Flags: "BLD_*_UNIVERSAL_PAYLOAD=TRUE BLD_*_EMU_VARIABLE_ENABLE=FALSE BLD_*_DISABLE_RESET_SYSTEM=TRUE BLD_*_SERIAL_DRIVER_ENABLE=FALSE BLD_*_MAX_LOGICAL_PROCESSORS=1024 BLD_*_MAX_SIZE_NON_POPULATE_CAPSULE=0x2100000 BLD_*_RTC_INDEX_REGISTER=0x74 BLD_*_RTC_TARGET_REGISTER=0x75"
+            Build.Target: "DEBUG"
+            Run.Flags: $(run_flags)
+            Run: $(should_run)
+            Build.Entry: ""
+          UefiPayloadPkg_X64_DEBUG_Entry:
+            Build.File: "$(package)/PlatformCI/PlatformBuild.py"
+            Build.Arch: "X64"
+            Build.Flags: "BLD_*_UNIVERSAL_PAYLOAD=TRUE BLD_*_EMU_VARIABLE_ENABLE=FALSE BLD_*_DISABLE_RESET_SYSTEM=TRUE BLD_*_SERIAL_DRIVER_ENABLE=FALSE BLD_*_MAX_LOGICAL_PROCESSORS=1024 BLD_*_MAX_SIZE_NON_POPULATE_CAPSULE=0x2100000 BLD_*_RTC_INDEX_REGISTER=0x74 BLD_*_RTC_TARGET_REGISTER=0x75"
+            Build.Target: "RELEASE"
+            Run.Flags: $(run_flags)
+            Run: $(should_run)
+            Build.Entry: "$(package)/UefiPayloadEntry/UniversalPayloadEntry.inf"
+
+    workspace:
+      clean: all
+
+    pool:
+      vmImage: $(vm_image)
+
+    steps:
+    - template: ../../../.azurepipelines/templates/platform-build-run-steps.yml
+      parameters:
+        tool_chain_tag: VS2019
+        build_pkg: $(package)
+        build_target: $(Build.Target)
+        build_arch: $(Build.Arch)
+        build_file: $(Build.File)
+        build_flags: $(Build.Flags)
+        run_flags: $(Run.Flags)
+        build_entry: $(Build.Entry)
