@@ -12,6 +12,9 @@ parameters:
 - name: tool_chain_tag
   type: string
   default: ''
+- name: tool_chain_tag_build
+  type: string
+  default: ''
 - name: build_pkg
   type: string
   default: ''
@@ -88,7 +91,7 @@ steps:
 #   are all resolved.
 - template: basetools-build-steps.yml
   parameters:
-    tool_chain_tag: ${{ parameters.tool_chain_tag }}
+    tool_chain_tag: ${{ parameters.tool_chain_tag_build }}
 
 # Potential Extra steps
 - ${{ parameters.extra_install_step }}
@@ -98,7 +101,7 @@ steps:
   displayName: Build
   inputs:
     filename: stuart_build
-    arguments: -c ${{ parameters.build_file }} TOOL_CHAIN_TAG=${{ parameters.tool_chain_tag}} TARGET=${{ parameters.build_target}} -m ${{ parameters.build_entry}} -a ${{ parameters.build_arch}} ${{ parameters.build_flags}}
+    arguments: -c ${{ parameters.build_file }} TOOL_CHAIN_TAG=${{ parameters.tool_chain_tag}} TARGET=${{ parameters.build_target}} BUILDMODULE=${{ parameters.build_entry}} -a ${{ parameters.build_arch}} ${{ parameters.build_flags}}
   condition: and(gt(variables.pkg_count, 0), succeeded())
 
 # Run
@@ -106,7 +109,7 @@ steps:
   displayName: Run to shell
   inputs:
     filename: stuart_build
-    arguments: -c ${{ parameters.build_file }} TOOL_CHAIN_TAG=${{ parameters.tool_chain_tag}} TARGET=${{ parameters.build_target}} -m ${{ parameters.build_entry}} -a ${{ parameters.build_arch}} ${{ parameters.build_flags}} ${{ parameters.run_flags }} --FlashOnly
+    arguments: -c ${{ parameters.build_file }} TOOL_CHAIN_TAG=${{ parameters.tool_chain_tag}} TARGET=${{ parameters.build_target}} BUILDMODULE=${{ parameters.build_entry}} -a ${{ parameters.build_arch}} ${{ parameters.build_flags}} ${{ parameters.run_flags }} --FlashOnly
   condition: and(and(gt(variables.pkg_count, 0), succeeded()), eq(variables['Run'], true))
   timeoutInMinutes: 1
 

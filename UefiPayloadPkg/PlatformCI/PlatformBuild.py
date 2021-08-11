@@ -142,7 +142,7 @@ class PlatformBuilder(UefiBuilder, BuildSettingsManager):
         parserObj.add_argument('-a', "--arch", dest="build_arch", type=str, default="X64",
                                help="Optional - architecture to build.  IA32 will use IA32 for Pei & Dxe. "
                                "X64 will use X64 for both PEI and DXE.")
-
+        
     def RetrieveCommandLineOptions(self, args):
         '''  Retrieve command line options from the argparser '''
 
