@@ -53,7 +53,7 @@ typedef struct {
 /// Value of version  in EFI_HOB_HANDOFF_INFO_TABLE.
 ///
 #define EFI_HOB_HANDOFF_TABLE_VERSION 0x0009
-
+#define TEST 0x0005
 ///
 /// Contains general state information used by the HOB producer phase.
 /// This HOB must be the first one in the HOB list.
