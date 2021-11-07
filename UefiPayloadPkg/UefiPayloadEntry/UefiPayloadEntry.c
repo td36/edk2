@@ -389,6 +389,19 @@ _ModuleEntryPoint (
   IN UINTN                     BootloaderParameter
   )
 {
+  IoWrite8 (LEGACY_8259_MASK_REGISTER_MASTER, 0xFF);
+  IoWrite8 (LEGACY_8259_MASK_REGISTER_MASTER, 0x41);
+  IoRead8 (LEGACY_8259_MASK_REGISTER_MASTER);
+  UINTN  Written;
+  CHAR16 Translated[56];
+  UINT32 PciRoot = 0x888;
+  Translated[0] = L'\0';
+  Written = UnicodeSPrintAsciiFormat (
+    Translated,
+    sizeof Translated, // BufferSize in bytes
+    "PciRoottest isis(0x%x)",
+    PciRoot
+    );
   EFI_STATUS                    Status;
   PHYSICAL_ADDRESS              DxeCoreEntryPoint;
   UINTN                         MemBase;

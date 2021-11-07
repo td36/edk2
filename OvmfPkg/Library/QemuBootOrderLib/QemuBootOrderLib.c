@@ -799,7 +799,7 @@ TranslatePciOfwNodes (
     Written = UnicodeSPrintAsciiFormat (
       Translated,
       *TranslatedSize * sizeof (*Translated), // BufferSize in bytes
-      "PciRoot(0x%x)%s/Pci(0x%Lx,0x%Lx)/Sata(0x%Lx,0xFFFF,0x0)",
+      "PciRoot(0x%x)%s/Pci(0x%Lx,0x%Lx)/Sata_testtest(0x%Lx,0xFFFF,0x0)",
       PciRoot,
       Bridges,
       PciDevFun[0],
