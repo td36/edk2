@@ -390,35 +390,44 @@ _ModuleEntryPoint (
   IN UINTN                     BootloaderParameter
   )
 {
+  IoWrite8 (0x3F8, 0x41);
+  IoWrite8 (0x3F8, 0x42);
   EFI_STATUS                    Status;
   PHYSICAL_ADDRESS              DxeCoreEntryPoint;
   EFI_PEI_HOB_POINTERS          Hob;
   EFI_FIRMWARE_VOLUME_HEADER    *DxeFv;
 
   mHobList = (VOID *) BootloaderParameter;
+  IoWrite8 (0x3F8, 0x43);
   DxeFv    = NULL;
   // Call constructor for all libraries
   ProcessLibraryConstructorList ();
-
+  IoWrite8 (0x3F8, 0x44);
   DEBUG ((DEBUG_INFO, "Entering Universal Payload...\n"));
   DEBUG ((DEBUG_INFO, "sizeof(UINTN) = 0x%x\n", sizeof(UINTN)));
-
+  DEBUG ((DEBUG_INFO, "BootloaderParameter = 0x%x\n", BootloaderParameter));
+  IoWrite8 (0x3F8, 0x45);
   DEBUG_CODE (
     //
     // Dump the Hobs from boot loader
     //
+    IoWrite8 (0x3F8, 0x46);
     PrintHob (mHobList);
+    IoWrite8 (0x3F8, 0x47);
   );
-
+  IoWrite8 (0x3F8, 0x48);
   // Initialize floating point operating environment to be compliant with UEFI spec.
   InitializeFloatingPointUnits ();
-
+  IoWrite8 (0x3F8, 0x49);
   // Build HOB based on information from Bootloader
   Status = BuildHobs (BootloaderParameter, &DxeFv);
+  IoWrite8 (0x3F8, 0x50);
   ASSERT_EFI_ERROR (Status);
 
   FixUpPcdDatabase (DxeFv);
+  IoWrite8 (0x3F8, 0x50);
   Status = UniversalLoadDxeCore (DxeFv, &DxeCoreEntryPoint);
+  IoWrite8 (0x3F8, 0x51);
   ASSERT_EFI_ERROR (Status);
 
   //
@@ -426,7 +435,7 @@ _ModuleEntryPoint (
   //
   IoWrite8 (LEGACY_8259_MASK_REGISTER_MASTER, 0xFF);
   IoWrite8 (LEGACY_8259_MASK_REGISTER_SLAVE,  0xFF);
-
+  IoWrite8 (0x3F8, 0x52);
   Hob.HandoffInformationTable = (EFI_HOB_HANDOFF_INFO_TABLE *) GetFirstHob(EFI_HOB_TYPE_HANDOFF);
   HandOffToDxeCore (DxeCoreEntryPoint, Hob);
 
