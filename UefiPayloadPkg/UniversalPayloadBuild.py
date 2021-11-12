@@ -59,7 +59,7 @@ def BuildUniversalPayload(Args, MacroList):
     DscPath = os.path.normpath("UefiPayloadPkg/UefiPayloadPkg.dsc")
     BuildDir = os.path.join(os.environ['WORKSPACE'], os.path.normpath("Build/UefiPayloadPkgX64"))
     FvOutputDir = os.path.join(BuildDir, f"{BuildTarget}_{ToolChain}", os.path.normpath("FV/DXEFV.Fv"))
-    EntryOutputDir = os.path.join(BuildDir, f"{BuildTarget}_{ElfToolChain}", os.path.normpath("X64/UefiPayloadPkg/UefiPayloadEntry/UniversalPayloadEntry/DEBUG/UniversalPayloadEntry.dll"))
+    EntryOutputDir = os.path.join(BuildDir, f"{BuildTarget}_{ElfToolChain}", os.path.normpath("IA32/UefiPayloadPkg/UefiPayloadEntry/UniversalPayloadEntry/DEBUG/UniversalPayloadEntry.dll"))
     PayloadReportPath = os.path.join(BuildDir, "UefiUniversalPayload.txt")
     ModuleReportPath = os.path.join(BuildDir, "UefiUniversalPayloadEntry.txt")
     UpldInfoFile = os.path.join(BuildDir, "UniversalPayloadInfo.bin")
@@ -87,7 +87,7 @@ def BuildUniversalPayload(Args, MacroList):
     #
     # Building Universal Payload entry.
     #
-    BuildModule = f"build -p {DscPath} -b {BuildTarget} -a X64 -m {EntryModuleInf} -t {ElfToolChain} -y {ModuleReportPath}"
+    BuildModule = f"build -p {DscPath} -b {BuildTarget} -a IA32 -a X64 -m {EntryModuleInf} -t {ElfToolChain} -y {ModuleReportPath}"
     BuildModule += Defines
     RunCommand(BuildModule)
 
@@ -103,9 +103,9 @@ def BuildUniversalPayload(Args, MacroList):
     #
     # Copy the DXEFV as a section in elf format Universal Payload entry.
     #
-    remove_section = '"%s" -I elf64-x86-64 -O elf64-x86-64 --remove-section .upld_info --remove-section .upld.uefi_fv %s'%(LlvmObjcopyPath, EntryOutputDir)
-    add_section    = '"%s" -I elf64-x86-64 -O elf64-x86-64 --add-section .upld_info=%s --add-section .upld.uefi_fv=%s %s'%(LlvmObjcopyPath, UpldInfoFile, FvOutputDir, EntryOutputDir)
-    set_section    = '"%s" -I elf64-x86-64 -O elf64-x86-64 --set-section-alignment .upld.upld_info=16 --set-section-alignment .upld.uefi_fv=16 %s'%(LlvmObjcopyPath, EntryOutputDir)
+    remove_section = '"%s" -I elf32-x86-64 -O elf32-x86-64 --remove-section .upld_info --remove-section .upld.uefi_fv %s'%(LlvmObjcopyPath, EntryOutputDir)
+    add_section    = '"%s" -I elf32-x86-64 -O elf32-x86-64 --add-section .upld_info=%s --add-section .upld.uefi_fv=%s %s'%(LlvmObjcopyPath, UpldInfoFile, FvOutputDir, EntryOutputDir)
+    set_section    = '"%s" -I elf32-x86-64 -O elf32-x86-64 --set-section-alignment .upld.upld_info=16 --set-section-alignment .upld.uefi_fv=16 %s'%(LlvmObjcopyPath, EntryOutputDir)
     RunCommand(remove_section)
     RunCommand(add_section)
     RunCommand(set_section)
