@@ -416,6 +416,7 @@ _ModuleEntryPoint (
   // Build HOB based on information from Bootloader
   Status = BuildHobs (BootloaderParameter, &DxeFv);
   ASSERT_EFI_ERROR (Status);
+  DEBUG ((DEBUG_INFO, "The DXEFv addr is 0x%p\n", DxeFv));
 
   FixUpPcdDatabase (DxeFv);
   Status = UniversalLoadDxeCore (DxeFv, &DxeCoreEntryPoint);
@@ -429,6 +430,7 @@ _ModuleEntryPoint (
 
   Hob.HandoffInformationTable = (EFI_HOB_HANDOFF_INFO_TABLE *) GetFirstHob(EFI_HOB_TYPE_HANDOFF);
   HandOffToDxeCore (DxeCoreEntryPoint, Hob);
+  DEBUG ((DEBUG_INFO, "The error process reached there"));
 
   // Should not get here
   CpuDeadLoop ();

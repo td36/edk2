@@ -692,7 +692,6 @@ CreateIdentityMappingPageTables (
   PAGE_TABLE_1G_ENTRY                           *PageDirectory1GEntry;
   UINT64                                        AddressEncMask;
   IA32_CR4                                      Cr4;
-
   //
   // Set PageMapLevel5Entry to suppress incorrect compiler/analyzer warnings
   //
@@ -704,8 +703,11 @@ CreateIdentityMappingPageTables (
   AddressEncMask = PcdGet64 (PcdPteMemoryEncryptionAddressOrMask) & PAGING_1G_ADDRESS_MASK_64;
 
   Page1GSupport = FALSE;
+  DEBUG ((DEBUG_INFO, "step a \n"));
   if (PcdGetBool(PcdUse1GPageTable)) {
+    DEBUG ((DEBUG_INFO, "step a.1 \n"));
     AsmCpuid (0x80000000, &RegEax, NULL, NULL, NULL);
+    DEBUG ((DEBUG_INFO, "RegEax is 0x%x\n", RegEax));
     if (RegEax >= 0x80000001) {
       AsmCpuid (0x80000001, NULL, NULL, NULL, &RegEdx);
       if ((RegEdx & BIT26) != 0) {
@@ -717,9 +719,12 @@ CreateIdentityMappingPageTables (
   //
   // Get physical address bits supported.
   //
+  DEBUG ((DEBUG_INFO, "step b \n"));
   Hob = GetFirstHob (EFI_HOB_TYPE_CPU);
+  DEBUG ((DEBUG_INFO, "step c \n"));
   if (Hob != NULL) {
     PhysicalAddressBits = ((EFI_HOB_CPU *) Hob)->SizeOfMemorySpace;
+    DEBUG ((DEBUG_INFO, "PhysicalAddressBits is 0x%x\n", PhysicalAddressBits));
   } else {
     AsmCpuid (0x80000000, &RegEax, NULL, NULL, NULL);
     if (RegEax >= 0x80000008) {
@@ -729,7 +734,7 @@ CreateIdentityMappingPageTables (
       PhysicalAddressBits = 36;
     }
   }
-
+  DEBUG ((DEBUG_INFO, "step d \n"));
   Page5LevelSupport = FALSE;
   if (PcdGetBool (PcdUse5LevelPageTable)) {
     AsmCpuidEx (

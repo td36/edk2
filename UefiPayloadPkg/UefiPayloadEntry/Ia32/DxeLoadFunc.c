@@ -249,6 +249,7 @@ HandOffToDxeCore (
   UINT32                    Index;
   X64_IDT_TABLE             *IdtTableForX64;
 
+  DEBUG ((DEBUG_INFO, "The HobList addr is 0x%p\n", HobList));
   //
   // Clear page 0 and mark it as allocated if NULL pointer detection is enabled.
   //
@@ -258,6 +259,7 @@ HandOffToDxeCore (
   }
 
   BaseOfStack = (EFI_PHYSICAL_ADDRESS) (UINTN) AllocatePages (EFI_SIZE_TO_PAGES (STACK_SIZE));
+  DEBUG ((DEBUG_INFO, "The BaseOfStack addr is 0x%p\n", BaseOfStack));
   ASSERT (BaseOfStack != 0);
 
   if (FeaturePcdGet(PcdDxeIplSwitchToLongMode)) {
@@ -276,32 +278,39 @@ HandOffToDxeCore (
     //  x64 Calling Conventions requires that the stack must be aligned to 16 bytes
     //
     TopOfStack = (EFI_PHYSICAL_ADDRESS) (UINTN) ALIGN_POINTER (TopOfStack, 16);
-
+    DEBUG ((DEBUG_INFO, "The TopOfStack addr is 0x%p\n", TopOfStack));
     //
     // Load the GDT of Go64. Since the GDT of 32-bit Tiano locates in the BS_DATA
     // memory, it may be corrupted when copying FV to high-end memory
     //
     AsmWriteGdtr (&gGdt);
+    DEBUG ((DEBUG_INFO, "step 1 \n"));
     //
     // Create page table and save PageMapLevel4 to CR3
     //
     PageTables = CreateIdentityMappingPageTables (BaseOfStack, STACK_SIZE, 0, 0);
+    DEBUG ((DEBUG_INFO, "step 2 \n"));
 
     //
     // Paging might be already enabled. To avoid conflict configuration,
     // disable paging first anyway.
     //
     AsmWriteCr0 (AsmReadCr0 () & (~BIT31));
+    DEBUG ((DEBUG_INFO, "step 3 \n"));
     AsmWriteCr3 (PageTables);
+    DEBUG ((DEBUG_INFO, "step 4 \n"));
 
     //
     // Update the contents of BSP stack HOB to reflect the real stack info passed to DxeCore.
     //
     UpdateStackHob (BaseOfStack, STACK_SIZE);
+    DEBUG ((DEBUG_INFO, "step 5 \n"));
 
     SizeOfTemplate = AsmGetVectorTemplatInfo (&TemplateBase);
+    DEBUG ((DEBUG_INFO, "step 6 \n"));
 
     VectorAddress = (EFI_PHYSICAL_ADDRESS) (UINTN) AllocatePages (EFI_SIZE_TO_PAGES(sizeof (X64_IDT_TABLE) + SizeOfTemplate * IDT_ENTRY_COUNT));
+    DEBUG ((DEBUG_INFO, "The VectorAddress addr is 0x%p\n", VectorAddress));
     ASSERT (VectorAddress != 0);
 
     //
