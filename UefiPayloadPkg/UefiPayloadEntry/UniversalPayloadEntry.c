@@ -420,6 +420,7 @@ _ModuleEntryPoint (
 
   FixUpPcdDatabase (DxeFv);
   Status = UniversalLoadDxeCore (DxeFv, &DxeCoreEntryPoint);
+  DEBUG ((DEBUG_INFO, "The DxeCoreEntryPoint addr is 0x%llx\n", DxeCoreEntryPoint));
   ASSERT_EFI_ERROR (Status);
 
   //

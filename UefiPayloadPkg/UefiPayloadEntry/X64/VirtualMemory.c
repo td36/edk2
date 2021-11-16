@@ -798,6 +798,7 @@ CreateIdentityMappingPageTables (
     NumberOfPdpEntriesNeeded, (UINT64)TotalPagesNum));
 
   BigPageAddress = (UINTN) AllocatePageTableMemory (TotalPagesNum);
+  DEBUG ((DEBUG_INFO, "the BigPageAddress is  0x%x\n", BigPageAddress));
   ASSERT (BigPageAddress != 0);
 
   //
@@ -852,6 +853,7 @@ CreateIdentityMappingPageTables (
       PageMapLevel4Entry->Bits.Present = 1;
 
       if (Page1GSupport) {
+        DEBUG ((DEBUG_INFO, "step e \n"));
         PageDirectory1GEntry = (VOID *) PageDirectoryPointerEntry;
 
         for (IndexOfPageDirectoryEntries = 0; IndexOfPageDirectoryEntries < 512; IndexOfPageDirectoryEntries++, PageDirectory1GEntry++, PageAddress += SIZE_1GB) {
@@ -868,6 +870,7 @@ CreateIdentityMappingPageTables (
           }
         }
       } else {
+        DEBUG ((DEBUG_INFO, "step f \n"));
         for ( IndexOfPdpEntries = 0
             ; IndexOfPdpEntries < (NumberOfPml4EntriesNeeded == 1 ? NumberOfPdpEntriesNeeded : 512)
             ; IndexOfPdpEntries++, PageDirectoryPointerEntry++) {
@@ -902,6 +905,7 @@ CreateIdentityMappingPageTables (
             }
           }
         }
+        DEBUG ((DEBUG_INFO, "step g \n"));
 
         //
         // Fill with null entry for unused PDPTE
@@ -915,7 +919,7 @@ CreateIdentityMappingPageTables (
     //
     ZeroMem (PageMapLevel4Entry, (512 - IndexOfPml4Entries) * sizeof (PAGE_MAP_AND_DIRECTORY_POINTER));
   }
-
+  DEBUG ((DEBUG_INFO, "step h \n"));
   if (Page5LevelSupport) {
     Cr4.UintN = AsmReadCr4 ();
     Cr4.Bits.LA57 = 1;
@@ -925,20 +929,21 @@ CreateIdentityMappingPageTables (
     //
     ZeroMem (PageMapLevel5Entry, (512 - IndexOfPml5Entries) * sizeof (PAGE_MAP_AND_DIRECTORY_POINTER));
   }
-
+  DEBUG ((DEBUG_INFO, "step i \n"));
   //
   // Protect the page table by marking the memory used for page table to be
   // read-only.
   //
   EnablePageTableProtection ((UINTN)PageMap, TRUE);
+  DEBUG ((DEBUG_INFO, "step j \n"));
 
   //
   // Set IA32_EFER.NXE if necessary.
   //
-  if (IsEnableNonExecNeeded ()) {
-    EnableExecuteDisableBit ();
-  }
 
+  DEBUG ((DEBUG_INFO, "step k \n"));
+  DEBUG ((DEBUG_INFO, "PageMap is 0x%p\n", PageMap));
+  DEBUG ((DEBUG_INFO, "size of UINTN is %d\n", sizeof (UINTN)));
   return (UINTN)PageMap;
 }
 
