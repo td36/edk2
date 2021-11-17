@@ -345,7 +345,7 @@ HandOffToDxeCore (
 
     DEBUG ((
       DEBUG_INFO,
-      "%a() Stack Base: 0x%lx, Stack Size: 0x%x\n",
+      "%a() Stack Base: 0x%lx, oooooStack Size: 0x%x\n",
       __FUNCTION__,
       BaseOfStack,
       STACK_SIZE
@@ -356,6 +356,7 @@ HandOffToDxeCore (
     // Interrupts will not get turned on until the CPU AP is loaded.
     // Call x64 drivers passing in single argument, a pointer to the HOBs.
     //
+    DEBUG ((DEBUG_INFO, "the AsmEnablePaging64 addr is %p\n", AsmEnablePaging64));
     AsmEnablePaging64 (
       SYS_CODE64_SEL,
       DxeCoreEntryPoint,

@@ -30,6 +30,9 @@
 ;------------------------------------------------------------------------------
 global ASM_PFX(InternalX86EnablePaging64)
 ASM_PFX(InternalX86EnablePaging64):
+    mov     dx, 0x3f8
+    mov     al, 't'
+    out     dx, al 
     cli
     mov     DWORD [esp], .0         ; offset for far retf, seg is the 1st arg
     mov     eax, cr4

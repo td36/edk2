@@ -240,6 +240,7 @@
   PcdLib
   DebugLib
   BaseMemoryLib
+  IoLib
 
 [Pcd]
   gEfiMdePkgTokenSpaceGuid.PcdMaximumLinkedListLength      ## SOMETIMES_CONSUMES

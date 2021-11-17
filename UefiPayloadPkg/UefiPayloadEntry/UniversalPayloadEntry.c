@@ -400,6 +400,8 @@ _ModuleEntryPoint (
   // Call constructor for all libraries
   ProcessLibraryConstructorList ();
 
+  DEBUG ((DEBUG_INFO, "the entrypoint addr is %p\n", _ModuleEntryPoint));
+  DEBUG ((DEBUG_INFO, "the ProcessLibraryConstructorList addr is %p\n", ProcessLibraryConstructorList));
   DEBUG ((DEBUG_INFO, "Entering Universal Payload...\n"));
   DEBUG ((DEBUG_INFO, "sizeof(UINTN) = 0x%x\n", sizeof(UINTN)));
 
@@ -412,7 +414,7 @@ _ModuleEntryPoint (
 
   // Initialize floating point operating environment to be compliant with UEFI spec.
   InitializeFloatingPointUnits ();
-
+  DEBUG ((DEBUG_INFO, "the InitializeFloatingPointUnits addr is %p\n", InitializeFloatingPointUnits));
   // Build HOB based on information from Bootloader
   Status = BuildHobs (BootloaderParameter, &DxeFv);
   ASSERT_EFI_ERROR (Status);

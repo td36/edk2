@@ -26,6 +26,9 @@
 ;------------------------------------------------------------------------------
 global ASM_PFX(InternalX86WriteIdtr)
 ASM_PFX(InternalX86WriteIdtr):
+    mov     dx, 0x3f8
+    mov     al, 't'
+    out     dx, al 
     mov     eax, [esp + 4]
     pushfd
     cli

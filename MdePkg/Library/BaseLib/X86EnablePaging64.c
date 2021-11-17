@@ -8,8 +8,9 @@
 
 
 
-
+#include <Library/IoLib.h>
 #include "BaseLibInternals.h"
+
 
 /**
   Enables the 64-bit paging mode on the CPU.
@@ -53,7 +54,9 @@ AsmEnablePaging64 (
   IN      UINT64                    NewStack
   )
 {
+  IoWrite8(0x3f8, '9');
   ASSERT (EntryPoint != 0);
   ASSERT (NewStack != 0);
+  IoWrite8(0x3f8, '8');
   InternalX86EnablePaging64 (Cs, EntryPoint, Context1, Context2, NewStack);
 }

@@ -234,7 +234,7 @@ DxeMain (
   IN  VOID *HobStart
   )
 {
-  IoWrite8(0x3f8, 'a');
+  IoWrite8(0x3f8, 'f');
   EFI_STATUS                    Status;
   EFI_PHYSICAL_ADDRESS          MemoryBaseAddress;
   UINT64                        MemoryLength;

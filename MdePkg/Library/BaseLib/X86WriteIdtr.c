@@ -8,7 +8,7 @@
 
 
 
-
+#include <Library/IoLib.h>
 #include "BaseLibInternals.h"
 
 /**
@@ -28,6 +28,8 @@ AsmWriteIdtr (
   IN      CONST IA32_DESCRIPTOR     *Idtr
   )
 {
+  IoWrite8(0x3f8, 'z');
   ASSERT (Idtr != NULL);
+  IoWrite8(0x3f8, 'z');
   InternalX86WriteIdtr (Idtr);
 }
