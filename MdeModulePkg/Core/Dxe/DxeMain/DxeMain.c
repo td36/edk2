@@ -234,6 +234,7 @@ DxeMain (
   IN  VOID *HobStart
   )
 {
+  IoWrite8(0x3f8, 'd');
   EFI_STATUS                    Status;
   EFI_PHYSICAL_ADDRESS          MemoryBaseAddress;
   UINT64                        MemoryLength;
@@ -244,6 +245,7 @@ DxeMain (
   EFI_VECTOR_HANDOFF_INFO       *VectorInfo;
   VOID                          *EntryPoint;
 
+  DEBUG ((DEBUG_INFO, "dxe core\n"));
   //
   // Setup the default exception handlers
   //
