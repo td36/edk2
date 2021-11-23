@@ -431,8 +431,6 @@
       FileExplorerLib|MdeModulePkg/Library/FileExplorerLib/FileExplorerLib.inf
   }
 
-  MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
-  MdeModulePkg/Universal/LoadFileOnFv2/LoadFileOnFv2.inf
 
   MdeModulePkg/Universal/DebugServicePei/DebugServicePei.inf
 
