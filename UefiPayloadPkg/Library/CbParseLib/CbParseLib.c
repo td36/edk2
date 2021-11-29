@@ -226,8 +226,10 @@ FindCbTag (
   TagPtr = NULL;
   TmpPtr = (UINT8 *)Header + Header->header_bytes;
   for (Idx = 0; Idx < Header->table_entries; Idx++) {
+    IoWrite8(0x3f8, 'a');
     Record = (struct cb_record *)TmpPtr;
     if (Record->tag == Tag) {
+      IoWrite8(0x3f8, 'b');
       TagPtr = TmpPtr;
       break;
     }
@@ -516,16 +518,17 @@ ParseGfxInfo (
 {
   struct cb_framebuffer                 *CbFbRec;
   EFI_GRAPHICS_OUTPUT_MODE_INFORMATION  *GfxMode;
-
+  IoWrite8(0x3f8, '9');
   if (GfxInfo == NULL) {
     return RETURN_INVALID_PARAMETER;
   }
 
   CbFbRec = FindCbTag (CB_TAG_FRAMEBUFFER);
   if (CbFbRec == NULL) {
+    IoWrite8(0x3f8, '8');
     return RETURN_NOT_FOUND;
   }
-
+  IoWrite8(0x3f8, '7');
   DEBUG ((DEBUG_INFO, "Found coreboot video frame buffer information\n"));
   DEBUG ((DEBUG_INFO, "physical_address: 0x%lx\n", CbFbRec->physical_address));
   DEBUG ((DEBUG_INFO, "x_resolution: 0x%x\n", CbFbRec->x_resolution));
