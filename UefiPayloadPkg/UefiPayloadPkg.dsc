@@ -275,6 +275,8 @@
   HobLib|UefiPayloadPkg/Library/PayloadEntryHobLib/HobLib.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
   DxeHobListLib|UefiPayloadPkg/Library/DxeHobListLibNull/DxeHobListLibNull.inf
+  LzmaDecompressLib|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCommonDecompressLib.inf
+  ElfLoaderLib|UefiPayloadPkg/PayloadLoaderPeim/ElfLoaderLib.inf
 
 [LibraryClasses.common.DXE_CORE]
   DxeHobListLib|UefiPayloadPkg/Library/DxeHobListLibNull/DxeHobListLibNull.inf
@@ -507,6 +509,7 @@
 
 !if "IA32" in "$(ARCH)"
   [Components.IA32]
+    UefiPayloadPkg/ShimLayer/ShimLayer.inf
   !if $(UNIVERSAL_PAYLOAD) == TRUE
     UefiPayloadPkg/UefiPayloadEntry/UniversalPayloadEntry.inf
   !else
