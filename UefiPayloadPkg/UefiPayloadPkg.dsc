@@ -271,6 +271,8 @@
   VariablePolicyHelperLib|MdeModulePkg/Library/VariablePolicyHelperLib/VariablePolicyHelperLib.inf
   VmgExitLib|UefiCpuPkg/Library/VmgExitLibNull/VmgExitLibNull.inf
 
+  LzmaDecompressLib|MdeModulePkg\Library\LzmaCustomDecompressLib\LzmaCommonDecompressLib.inf
+
 [LibraryClasses.common.SEC]
   HobLib|UefiPayloadPkg/Library/PayloadEntryHobLib/HobLib.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
@@ -507,6 +509,7 @@
 
 !if "IA32" in "$(ARCH)"
   [Components.IA32]
+    UefiPayloadPkg/ShimLayer/ShimLayer.inf
   !if $(UNIVERSAL_PAYLOAD) == TRUE
     UefiPayloadPkg/UefiPayloadEntry/UniversalPayloadEntry.inf
   !else
