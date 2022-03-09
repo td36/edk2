@@ -123,6 +123,7 @@ InitRootBridge (
   RootBus->Bus.Base             = RootBusNumber;
   RootBus->Bus.Limit            = MaxSubBusNumber;
   CopyMem (&RootBus->Io, Io, sizeof (*Io));
+  DEBUG ((DEBUG_INFO, "Final:: The Base is: 0x%x, Limit is: 0x%x\n", RootBus->Io.Base, RootBus->Io.Limit));
   CopyMem (&RootBus->Mem, Mem, sizeof (*Mem));
   CopyMem (&RootBus->MemAbove4G, MemAbove4G, sizeof (*MemAbove4G));
   CopyMem (&RootBus->PMem, PMem, sizeof (*PMem));
