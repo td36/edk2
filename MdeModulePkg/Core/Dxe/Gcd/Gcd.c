@@ -612,6 +612,8 @@ CoreSearchGcdMapEntry (
   Link = Map->ForwardLink;
   while (Link != Map) {
     Entry = CR (Link, EFI_GCD_MAP_ENTRY, Link, EFI_GCD_MAP_SIGNATURE);
+    DEBUG ((DEBUG_INFO, "====TEST: the Entry->BaseAddress is 0x%lx, EndAddress is 0x%lx, GcdMemoryType is 0x%lx\n", 
+			          Entry->BaseAddress, Entry->EndAddress, Entry->GcdMemoryType));
     if ((BaseAddress >= Entry->BaseAddress) && (BaseAddress <= Entry->EndAddress)) {
       *StartLink = Link;
     }
@@ -1618,9 +1620,14 @@ CoreGetMemorySpaceDescriptor (
   //
   // Search for the list of descriptors that contain BaseAddress
   //
+  DEBUG ((DEBUG_INFO, "====STEP2: the BaseAddress is 0x%lx, Descriptor->BaseAddress 0x%lx, Descriptor->Length 0x%x\n", 
+			        BaseAddress, Descriptor->BaseAddress, Descriptor->Length));
   Status = CoreSearchGcdMapEntry (BaseAddress, 1, &StartLink, &EndLink, &mGcdMemorySpaceMap);
+  DEBUG ((DEBUG_INFO, "====STEP3: the BaseAddress is 0x%lx, Descriptor->BaseAddress 0x%lx, Descriptor->Length 0x%x\n", 
+			        BaseAddress, Descriptor->BaseAddress, Descriptor->Length));
   if (EFI_ERROR (Status)) {
     Status = EFI_NOT_FOUND;
+    DEBUG ((DEBUG_INFO, "STEP 111 FINAL RETURN\n"));
   } else {
     ASSERT (StartLink != NULL && EndLink != NULL);
     //

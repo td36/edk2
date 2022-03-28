@@ -385,7 +385,14 @@ AddMemoryMappedIoSpace (
        CheckBase < Base + Length;
        CheckBase = Descriptor.BaseAddress + Descriptor.Length)
   {
+    DEBUG ((DEBUG_INFO, "====STEP1: checkBase 0x%lx, length 0x%lx, the Base 0x%lx, BaseAddress 0x%lx, length 0x%x\n",
+			              CheckBase, Length, Base, Descriptor.BaseAddress, Descriptor.Length));
     CheckStatus = gDS->GetMemorySpaceDescriptor (CheckBase, &Descriptor);
+    UINT64                           Test;
+    DEBUG ((DEBUG_INFO, "====STEP4: checkBase 0x%lx, length 0x%lx, the Base 0x%lx, BaseAddress 0x%lx, length 0x%x\n", 
+				      CheckBase, Length, Base, Descriptor.BaseAddress, Descriptor.Length));
+    Test = Descriptor.BaseAddress + Descriptor.Length;
+    DEBUG ((DEBUG_INFO, "====TEST: the Test is 0x%lx\n", Test));
     ASSERT_EFI_ERROR (CheckStatus);
     ASSERT (Descriptor.GcdMemoryType == EfiGcdMemoryTypeMemoryMappedIo);
     ASSERT ((Descriptor.Capabilities & Capabilities) == Capabilities);
@@ -477,7 +484,9 @@ InitializePciHostBridge (
     //
     // Create Root Bridge Handle Instance
     //
+    DEBUG ((DEBUG_INFO, "STEP DEBUG CreateRootBridge\n"));
     RootBridge = CreateRootBridge (&RootBridges[Index]);
+    DEBUG ((DEBUG_INFO, "STEP 111\n"));
     ASSERT (RootBridge != NULL);
     if (RootBridge == NULL) {
       continue;
@@ -531,7 +540,11 @@ InitializePciHostBridge (
     MemApertures[1] = &RootBridges[Index].MemAbove4G;
     MemApertures[2] = &RootBridges[Index].PMem;
     MemApertures[3] = &RootBridges[Index].PMemAbove4G;
-
+    DEBUG ((DEBUG_INFO, "====RootBridges[Index].Mem.Base is 0x%lx\n", RootBridges[Index].Mem.Base));
+    DEBUG ((DEBUG_INFO, "====RootBridges[Index].MemAbove4G.Base is 0x%lx\n", RootBridges[Index].MemAbove4G.Base));
+    DEBUG ((DEBUG_INFO, "====RootBridges[Index].PMem.Base is 0x%lx\n", RootBridges[Index].PMem.Base));
+    DEBUG ((DEBUG_INFO, "====RootBridges[Index].PMemAbove4G.Base is 0x%lx\n", RootBridges[Index].PMemAbove4G.Base));
+    DEBUG ((DEBUG_INFO, "====Index is 0x%x\n", Index));
     for (MemApertureIndex = 0; MemApertureIndex < ARRAY_SIZE (MemApertures); MemApertureIndex++) {
       if (MemApertures[MemApertureIndex]->Base <= MemApertures[MemApertureIndex]->Limit) {
         //
@@ -542,6 +555,9 @@ InitializePciHostBridge (
                         MemApertures[MemApertureIndex]->Base,
                         MemApertures[MemApertureIndex]->Translation
                         );
+	DEBUG ((DEBUG_INFO, "====MemApertureIndex is 0x%x\n", MemApertureIndex));
+	DEBUG ((DEBUG_INFO, "====MemApertures[MemApertureIndex]->Base is 0x%lx\n", MemApertures[MemApertureIndex]->Base));
+	DEBUG ((DEBUG_INFO, "====HostAddress is 0x%lx\n", HostAddress));
         Status = AddMemoryMappedIoSpace (
                    HostAddress,
                    MemApertures[MemApertureIndex]->Limit - MemApertures[MemApertureIndex]->Base + 1,
@@ -577,6 +593,8 @@ InitializePciHostBridge (
     //
     InsertTailList (&HostBridge->RootBridges, &RootBridge->Link);
   }
+  DEBUG ((DEBUG_INFO, "STEP 222\n"));
+
 
   //
   // When resources were assigned, it's not needed to expose
@@ -600,6 +618,7 @@ InitializePciHostBridge (
                     );
     ASSERT_EFI_ERROR (Status);
   }
+  DEBUG ((DEBUG_INFO, "STEP 333\n"));
 
   for (Link = GetFirstNode (&HostBridge->RootBridges)
        ; !IsNull (&HostBridge->RootBridges, Link)
@@ -619,9 +638,9 @@ InitializePciHostBridge (
                     );
     ASSERT_EFI_ERROR (Status);
   }
-
+  DEBUG ((DEBUG_INFO, "STEP 444\n"));
   PciHostBridgeFreeRootBridges (RootBridges, RootBridgeCount);
-
+  DEBUG ((DEBUG_INFO, "STEP 555\n"));
   if (!EFI_ERROR (Status)) {
     mIoMmuEvent = EfiCreateProtocolNotifyEvent (
                     &gEdkiiIoMmuProtocolGuid,
@@ -631,7 +650,7 @@ InitializePciHostBridge (
                     &mIoMmuRegistration
                     );
   }
-
+  DEBUG ((DEBUG_INFO, "STEP 666\n"));
   return Status;
 }
 

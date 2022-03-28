@@ -88,12 +88,13 @@ AdjustRootBridgeResource (
   //
   // Align IO  resource at 4K  boundary
   //
+  DEBUG ((DEBUG_INFO, "STEP3:: The Io->Base is: 0x%x, Io->Limit is: 0x%x\n", Io->Base, Io->Limit));
   Mask      = 0xFFFULL;
   Io->Limit = ((Io->Limit + Mask) & ~Mask) - 1;
   if (Io->Base != MAX_UINT64) {
     Io->Base &= ~Mask;
   }
-
+  DEBUG ((DEBUG_INFO, "STEP4:: The Io->Base is: 0x%x, Io->Limit is: 0x%x\n", Io->Base, Io->Limit));
   //
   // Align MEM resource at 1MB boundary
   //
@@ -136,7 +137,8 @@ PcatPciRootBridgeBarExisted (
   PciWrite32 (PciAddress, 0xFFFFFFFF);
   *Value = PciRead32 (PciAddress);
   PciWrite32 (PciAddress, *OriginalValue);
-
+  DEBUG ((DEBUG_INFO, "FINAL:: The OriginalValue is: 0x%x\n", *OriginalValue));
+  DEBUG ((DEBUG_INFO, "FINAL:: Value is: 0x%x\n", *Value));
   //
   // Enable interrupt
   //
@@ -196,7 +198,7 @@ PcatPciRootBridgeParseBars (
   UINT64                    Length;
   UINT64                    Limit;
   PCI_ROOT_BRIDGE_APERTURE  *MemAperture;
-
+  DEBUG ((DEBUG_INFO, "FINAL:: The Bus is: 0x%x, Device is: 0x%x, Function is: 0x%x\n", Bus, Device, Function));
   for (Offset = BarOffsetBase; Offset < BarOffsetEnd; Offset += sizeof (UINT32)) {
     PcatPciRootBridgeBarExisted (
       PCI_LIB_ADDRESS (Bus, Device, Function, Offset),
@@ -230,6 +232,8 @@ PcatPciRootBridgeParseBars (
             Io->Limit = Limit;
           }
         }
+        DEBUG ((DEBUG_INFO, "STEP2:: The Base is: 0x%x, Limit is: 0x%x\n", Base, Limit));
+        DEBUG ((DEBUG_INFO, "STEP2:: The Io->Base is: 0x%x, Io->Limit is: 0x%x\n", Io->Base, Io->Limit));
       }
     } else {
       //
@@ -286,6 +290,8 @@ PcatPciRootBridgeParseBars (
             MemAperture->Limit = Limit;
           }
         }
+        DEBUG ((DEBUG_INFO, "STEP2:: The Base is: 0x%x, Limit is: 0x%x\n", Base, Limit));
+        DEBUG ((DEBUG_INFO, "STEP2:: The MemAperture->Base is: 0x%x, MemAperture->Limit is: 0x%x\n", MemAperture->Base, MemAperture->Limit));
       }
     }
   }
@@ -341,6 +347,7 @@ ScanForRootBridges (
     ZeroMem (&PMem, sizeof (PMem));
     ZeroMem (&PMemAbove4G, sizeof (PMemAbove4G));
     Io.Base = Mem.Base = MemAbove4G.Base = PMem.Base = PMemAbove4G.Base = MAX_UINT64;
+    DEBUG ((DEBUG_INFO, "The initial Io.Base is: 0x%x, initial Io.Limit is: 0x%x\n", Io.Base, Io.Limit));
     //
     // Scan all the PCI devices on the primary bus of the PCI root bridge
     //
@@ -395,6 +402,7 @@ ScanForRootBridges (
         //
         // PCI-PCI Bridge
         //
+        DEBUG ((DEBUG_INFO, "The Pci.Bridge.SubordinateBus is: %d\n", Pci.Bridge.SubordinateBus));
         if (IS_PCI_BRIDGE (&Pci)) {
           //
           // Get the Bus range that the PPB is decoding
@@ -418,7 +426,6 @@ ScanForRootBridges (
             Base  |= ((UINT32)Pci.Bridge.IoBaseUpper16 << 16);
             Limit |= ((UINT32)Pci.Bridge.IoLimitUpper16 << 16);
           }
-
           if ((Base > 0) && (Base < Limit)) {
             if (Io.Base > Base) {
               Io.Base = Base;
@@ -428,7 +435,8 @@ ScanForRootBridges (
               Io.Limit = Limit;
             }
           }
-
+          DEBUG ((DEBUG_INFO, "STEP1:: The Base is: 0x%x, Limit is: 0x%x\n", Base, Limit));
+          DEBUG ((DEBUG_INFO, "STEP1:: The Io.Base is: 0x%x, Io.Limit is: 0x%x\n", Io.Base, Io.Limit));
           //
           // Get the Memory range that the PPB is decoding
           //
@@ -443,7 +451,8 @@ ScanForRootBridges (
               Mem.Limit = Limit;
             }
           }
-
+          DEBUG ((DEBUG_INFO, "STEP1:: The Base is: 0x%x, Limit is: 0x%x\n", Base, Limit));
+          DEBUG ((DEBUG_INFO, "STEP1:: The Mem.Base is: 0x%x, Mem.Limit is: 0x%x\n", Mem.Base, Mem.Limit));
           //
           // Get the Prefetchable Memory range that the PPB is decoding
           //
@@ -467,7 +476,8 @@ ScanForRootBridges (
               MemAperture->Limit = Limit;
             }
           }
-
+          DEBUG ((DEBUG_INFO, "STEP1:: The Base is: 0x%x, Limit is: 0x%x\n", Base, Limit));
+          DEBUG ((DEBUG_INFO, "STEP1:: The MemAperture->Base is: 0x%x, MemAperture->Limit is: 0x%x\n", MemAperture->Base, MemAperture->Limit));
           //
           // Look at the PPB Configuration for legacy decoding attributes
           //
@@ -615,7 +625,7 @@ ScanForRootBridges (
       (*NumberOfRootBridges)++;
     }
   }
-
+  DEBUG ((DEBUG_INFO, "FINAL:: The NumberOfRootBridges is: 0x%x\n", *NumberOfRootBridges));
   return RootBridges;
 }
 
