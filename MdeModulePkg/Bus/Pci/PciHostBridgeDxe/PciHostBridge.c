@@ -487,7 +487,6 @@ InitializePciHostBridge (
     DEBUG ((DEBUG_INFO, "STEP DEBUG CreateRootBridge\n"));
     RootBridge = CreateRootBridge (&RootBridges[Index]);
     DEBUG ((DEBUG_INFO, "STEP 111\n"));
-    ASSERT (RootBridge != NULL);
     if (RootBridge == NULL) {
       continue;
     }
@@ -501,7 +500,7 @@ InitializePciHostBridge (
       ASSERT (ResourceAssigned == RootBridges[Index].ResourceAssigned);
     }
 
-    if (RootBridges[Index].Io.Base <= RootBridges[Index].Io.Limit) {
+    if (RootBridges[Index].Io.Base < RootBridges[Index].Io.Limit) {
       //
       // Base and Limit in PCI_ROOT_BRIDGE_APERTURE are device address.
       // For GCD resource manipulation, we need to use host address.
