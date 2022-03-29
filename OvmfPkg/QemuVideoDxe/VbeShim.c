@@ -148,6 +148,11 @@ InstallVbeShim (
   //
   // Start by determining the address of the PAM1 register.
   //
+  RETURN_STATUS  PcdStatus;
+  PcdStatus = PcdSet16S (PcdOvmfHostBridgePciDevId, INTEL_82441_DEVICE_ID);
+  ASSERT_RETURN_ERROR (PcdStatus);
+  DEBUG ((DEBUG_INFO, "Set the PcdOvmfHostBridgePciDevId\n"));
+  HostBridgeDevId = PcdGet16 (PcdOvmfHostBridgePciDevId);
   HostBridgeDevId = PcdGet16 (PcdOvmfHostBridgePciDevId);
   switch (HostBridgeDevId) {
     case INTEL_82441_DEVICE_ID:

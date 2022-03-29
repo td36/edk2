@@ -602,6 +602,7 @@
   #
   # PCI Support
   #
+  OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
   MdeModulePkg/Bus/Pci/PciBusDxe/PciBusDxe.inf
   MdeModulePkg/Bus/Pci/PciHostBridgeDxe/PciHostBridgeDxe.inf {
     <LibraryClasses>

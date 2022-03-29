@@ -161,6 +161,7 @@ INF MdeModulePkg/Universal/SmbiosDxe/SmbiosDxe.inf
 #
 # PCI Support
 #
+INF OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
 INF MdeModulePkg/Bus/Pci/PciBusDxe/PciBusDxe.inf
 INF MdeModulePkg/Bus/Pci/PciHostBridgeDxe/PciHostBridgeDxe.inf
 
