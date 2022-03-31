@@ -1,7 +1,7 @@
 ## @file
 #  Automate the process of building the various reset vector types
 #
-#  Copyright (c) 2009 - 2021, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2009 - 2022, Intel Corporation. All rights reserved.<BR>
 #
 #  SPDX-License-Identifier: BSD-2-Clause-Patent
 #
@@ -10,17 +10,15 @@ import os
 import subprocess
 import sys
 
-PAGE_TABLE_2M  = 'PageTable2M'
-PAGE_TABLE_1G  = 'PageTable1G'
 FILE_FORMAT    = '.raw'
-ALL_RAW_FORMAT = '*' + FILE_FORMAT
 IA32           = 'IA32'
 X64            = 'X64'
+P64            = 'P64'
 
 # Pre-Define a Macros for Page Table
-PAGE_TABLES = {
-    PAGE_TABLE_2M : "PAGE_TABLE_2M",
-    PAGE_TABLE_1G : "PAGE_TABLE_1G"
+X64_PAGE_TABLES = {
+    "PageTable2M" : "PAGE_TABLE_2M",
+    "PageTable1G" : "PAGE_TABLE_1G"
 }
 
 def RunCommand(commandLine):
@@ -32,20 +30,27 @@ for root, dirs, files in os.walk('Bin'):
         if file.endswith(FILE_FORMAT):
             os.remove(os.path.join(root, file))
 
-for arch in ('ia32', 'x64'):
-    for debugType in (None, 'port80', 'serial'):
-        for pageTable in PAGE_TABLES.keys():
-            ret = True
-            if arch.lower() == X64.lower():
-                directory = os.path.join('Bin', X64, pageTable)
-            else:
-                directory = os.path.join('Bin', IA32)
+for arch in (IA32, X64, P64):
 
-            # output raw binary name with arch type
-            fileName = 'ResetVector' + '.' + arch
+    pageTables = {None: None}
+    if arch == X64:
+        pageTables = X64_PAGE_TABLES
 
+    for pageTable in pageTables.keys():
+        for debugType in (None, 'PORT80', 'SERIAL'):
+
+            # Pattern of directory:
+            #   X64:      Bin/X64/(PageTable2M|PageTable1G)
+            #   IA32/P64: Bin/(IA32|P64)
+            directory = os.path.join('Bin', arch)
+            if pageTable is not None:
+                directory = os.path.join(directory, pageTable)
+
+            # Pattern of fileName:
+            #   ResetVector.(ia32|x64|p64)[.(port80|serial)].raw
+            fileName = 'ResetVector' + '.' + arch.lower()
             if debugType is not None:
-                fileName += '.' + debugType
+                fileName += '.' + debugType.lower()
             fileName += FILE_FORMAT
 
             output = os.path.join(directory, fileName)
@@ -55,19 +60,17 @@ for arch in ('ia32', 'x64'):
                 os.makedirs(directory)
 
             # Prepare the command to execute the nasmb
-            commandLine = (
-                'nasm',
-                '-D', 'ARCH_%s' % arch.upper(),
-                '-D', 'DEBUG_%s' % str(debugType).upper(),
-                '-D', PAGE_TABLES[pageTable].upper(),
-                '-o', output,
-                'Vtf0.nasmb',
-                )
+            commandLine = f'nasm -D ARCH_{arch}'
+            if debugType is not None:
+                commandLine += f' -D DEBUG_{debugType}'
+            if pageTable is not None:
+                commandLine += f' -D {pageTables[pageTable]}'
+            commandLine += f' -o {output} Vtf0.nasmb'
 
-            print(f"Command : {' '.join(commandLine)}")
+            print(f"Command : {commandLine}")
 
             try:
-                ret = RunCommand(commandLine)
+                ret = RunCommand(commandLine.split())
             except FileNotFoundError:
                 print("NASM not found")
             except:
@@ -76,7 +79,7 @@ for arch in ('ia32', 'x64'):
             if ret != 0:
                 print(f"something went wrong while executing {commandLine[-1]}")
                 sys.exit()
-            print('\tASM\t' + output)
+            print('\tNASM\t' + output)
 
             commandLine = (
                 'python',
@@ -86,4 +89,3 @@ for arch in ('ia32', 'x64'):
             print('\tFIXUP\t' + output)
             ret = RunCommand(commandLine)
             if ret != 0: sys.exit(ret)
-

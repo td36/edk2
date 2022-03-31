@@ -21,15 +21,13 @@
 %define FFS3_GUID_DWORD2 0x961e6fbd
 %define FFS3_GUID_DWORD3 0x9a34e789
 
-BITS    32
-
 ;
 ; Modified:  EAX, EBX
 ; Preserved: EDI, ESP
 ;
 ; @param[out]  EBP  Address of Boot Firmware Volume (BFV)
 ;
-Flat32SearchForBfvBase:
+SearchForBfvBase:
 
     xor     eax, eax
 searchingForBfvHeaderLoop:
@@ -98,5 +96,5 @@ searchedForBfvHeaderAndItWasFound:
 
     debugShowPostCode POSTCODE_BFV_FOUND
 
-    OneTimeCallRet Flat32SearchForBfvBase
+    OneTimeCallRet SearchForBfvBase
 

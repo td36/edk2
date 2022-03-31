@@ -2,12 +2,10 @@
 ; @file
 ; Search for the SEC Core entry point
 ;
-; Copyright (c) 2008 - 2011, Intel Corporation. All rights reserved.<BR>
+; Copyright (c) 2008 - 2022, Intel Corporation. All rights reserved.<BR>
 ; SPDX-License-Identifier: BSD-2-Clause-Patent
 ;
 ;------------------------------------------------------------------------------
-
-BITS    32
 
 %define EFI_FV_FILETYPE_SECURITY_CORE         0x03
 
@@ -18,7 +16,7 @@ BITS    32
 ; @param[in]   EBP  Address of Boot Firmware Volume (BFV)
 ; @param[out]  ESI  SEC Core Entry Point Address
 ;
-Flat32SearchForSecEntryPoint:
+SearchForSecEntryPoint:
 
     ;
     ; Initialize EBP and ESI to 0
@@ -106,7 +104,7 @@ secCoreEntryPointWasNotFound:
 secCoreEntryPointWasFound:
     debugShowPostCode POSTCODE_SEC_FOUND
 
-    OneTimeCallRet Flat32SearchForSecEntryPoint
+    OneTimeCallRet SearchForSecEntryPoint
 
 %define EFI_SECTION_PE32                  0x10
 %define EFI_SECTION_TE                    0x12
