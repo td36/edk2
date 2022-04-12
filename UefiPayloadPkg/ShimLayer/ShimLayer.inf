@@ -51,6 +51,7 @@
   gUniversalPayloadAcpiTableGuid
   gUniversalPayloadSerialPortInfoGuid
   gUniversalPayloadExtraDataGuid
+  gUniversalPayloadPciRootBridgeInfoGuid
 
 
 [Pcd.IA32,Pcd.X64]

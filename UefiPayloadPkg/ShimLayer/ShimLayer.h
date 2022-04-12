@@ -37,6 +37,11 @@
 #include <Guid/PcdDataBaseSignatureGuid.h>
 #include <Coreboot.h>
 #include <Library/ElfLoaderLib.h>
+#include <Library/PciHostBridgeLib.h>
+#include <UniversalPayload/PciRootBridges.h>
+#include <Protocol/PciRootBridgeIo.h>
+#include <Protocol/PciHostBridgeResourceAllocation.h>
+#include "HobIioUds.h"
 
 #define SHIMLAYER_SIZE                    SIZE_1MB
 #define SHIMLAYER_REGION                  SIZE_16MB

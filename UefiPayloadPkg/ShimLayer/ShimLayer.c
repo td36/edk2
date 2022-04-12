@@ -322,6 +322,97 @@ MemInfoCallbackMmio (
   return EFI_SUCCESS;
 }
 
+
+/**
+  Parse Fsp IIO_UDS to generate PciRootBridge Hob
+
+  @retval RETURN_SUCCESS           The misc information was parsed successfully.
+  @retval RETURN_NOT_FOUND         Could not find required misc info.
+  @retval RETURN_OUT_OF_RESOURCES  Insufficant memory space.
+
+**/
+RETURN_STATUS
+EFIAPI
+ParseRootBridgeInfo (
+  OUT UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES  *PciRootBridgeInfo
+  )
+{
+  EFI_STATUS         Status;
+  UINTN              *FspHobListAddr;
+  UINT32             HobLength;
+  EFI_HOB_GUID_TYPE  *GuidHob;
+  IIO_UDS            *IioUdsHob;
+  EFI_GUID           UniversalDataGuid = IIO_UNIVERSAL_DATA_GUID;
+  UINT32             Index;
+  UINT32             Count = 0;
+  STACK_RES          *StackRes;
+  UINT32             IIONum;
+
+  Status = ParseCbmemInfo (CBMEM_ID_FSP_RUNTIME, (VOID *)&FspHobListAddr, &HobLength);
+  DEBUG ((DEBUG_INFO, "Find FspHosList at 0x%x\n", *FspHobListAddr));
+  if (EFI_ERROR (Status)) {
+    return EFI_NOT_FOUND;
+  }
+  GuidHob = GetNextGuidHob(&UniversalDataGuid, (VOID *)(*FspHobListAddr));
+  if (GuidHob != NULL) {
+    IioUdsHob = (IIO_UDS *)GET_GUID_HOB_DATA (GuidHob);
+    for (IIONum = 0; IIONum <= IioUdsHob->PlatformData.numofIIO; IIONum++) {
+      for (Index = 0; Index < MAX_LOGIC_IIO_STACK; Index++) {
+        StackRes = &IioUdsHob->PlatformData.IIO_resource[IIONum].StackRes[Index];
+        if (StackRes->BusBase <= StackRes->BusLimit) {
+          PciRootBridgeInfo->RootBridge[Count].Segment = IioUdsHob->PlatformData.CpuQpiInfo[IIONum].PcieSegment;
+          PciRootBridgeInfo->RootBridge[Count].Supports = EFI_PCI_ATTRIBUTE_IDE_PRIMARY_IO |
+            EFI_PCI_ATTRIBUTE_IDE_SECONDARY_IO  |
+            EFI_PCI_ATTRIBUTE_ISA_IO_16         |
+            EFI_PCI_ATTRIBUTE_VGA_PALETTE_IO_16 |
+            EFI_PCI_ATTRIBUTE_VGA_MEMORY        |
+            EFI_PCI_ATTRIBUTE_VGA_IO_16;
+          PciRootBridgeInfo->RootBridge[Count].Attributes = 0;
+          PciRootBridgeInfo->RootBridge[Count].DmaAbove4G =FALSE;
+          PciRootBridgeInfo->RootBridge[Count].NoExtendedConfigSpace = FALSE;
+          PciRootBridgeInfo->RootBridge[Count].AllocationAttributes = EFI_PCI_HOST_BRIDGE_COMBINE_MEM_PMEM |
+            EFI_PCI_HOST_BRIDGE_MEM64_DECODE;
+
+          PciRootBridgeInfo->RootBridge[Count].Bus.Base = StackRes->BusBase;
+          PciRootBridgeInfo->RootBridge[Count].Bus.Limit = StackRes->BusLimit;
+          PciRootBridgeInfo->RootBridge[Count].Bus.Translation = 0;
+
+          PciRootBridgeInfo->RootBridge[Count].Io.Base = StackRes->PciResourceIoBase;
+          PciRootBridgeInfo->RootBridge[Count].Io.Limit = StackRes->PciResourceIoLimit;
+          PciRootBridgeInfo->RootBridge[Count].Io.Translation = 0;
+
+          PciRootBridgeInfo->RootBridge[Count].Mem.Base = StackRes->PciResourceMem32Base;
+          PciRootBridgeInfo->RootBridge[Count].Mem.Limit = StackRes->PciResourceMem32Limit;
+          PciRootBridgeInfo->RootBridge[Count].Mem.Translation = 0;
+
+          PciRootBridgeInfo->RootBridge[Count].MemAbove4G.Base = StackRes->PciResourceMem64Base;
+          PciRootBridgeInfo->RootBridge[Count].MemAbove4G.Limit = StackRes->PciResourceMem64Limit;
+          PciRootBridgeInfo->RootBridge[Count].MemAbove4G.Translation = 0;
+
+          PciRootBridgeInfo->RootBridge[Count].PMem.Base = 0xFFFFFFFFFFFFFFFF;
+          PciRootBridgeInfo->RootBridge[Count].PMem.Limit = 0;
+          PciRootBridgeInfo->RootBridge[Count].PMem.Translation = 0;
+
+          PciRootBridgeInfo->RootBridge[Count].PMemAbove4G.Base = 0xFFFFFFFFFFFFFFFF;
+          PciRootBridgeInfo->RootBridge[Count].PMemAbove4G.Limit = 0;
+          PciRootBridgeInfo->RootBridge[Count].PMemAbove4G.Translation = 0;
+
+          PciRootBridgeInfo->RootBridge[Count].HID = EISA_PNP_ID(0x0A03);
+          PciRootBridgeInfo->RootBridge[Count].UID = Count;
+          Count++;
+        }
+      }
+    }
+    
+    PciRootBridgeInfo->Count = Count;
+    PciRootBridgeInfo->Header.Length = sizeof (UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES) + PciRootBridgeInfo->Count * sizeof (UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGE);
+    PciRootBridgeInfo->Header.Revision = UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES_REVISION;
+    PciRootBridgeInfo->ResourceAssigned = TRUE;
+
+  }
+  return RETURN_SUCCESS;
+}
+
 /**
   It will build HOBs based on information from bootloaders.
 
@@ -340,6 +431,9 @@ BuildHobFromBl (
   EFI_PEI_GRAPHICS_DEVICE_INFO_HOB  *NewGfxDeviceInfo;
   UNIVERSAL_PAYLOAD_SMBIOS_TABLE    *SmBiosTableHob;
   UNIVERSAL_PAYLOAD_ACPI_TABLE      *AcpiTableHob;
+  UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES PciRootBridgeInfo;
+  UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES *NewPciRootBridgeInfo;
+  UINT32                             Length;
 
   //
   // First find TOLUD
@@ -406,6 +500,14 @@ BuildHobFromBl (
     DEBUG ((DEBUG_INFO, "Detected ACPI Table at 0x%lx\n", AcpiTableHob->Rsdp));
   }
 
+  Status = ParseRootBridgeInfo (&PciRootBridgeInfo);
+  if (!EFI_ERROR (Status)) {
+    Length = sizeof(UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES) + PciRootBridgeInfo.Count * sizeof(UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGE);
+    NewPciRootBridgeInfo = BuildGuidHob (&gUniversalPayloadPciRootBridgeInfoGuid, Length);
+    ASSERT (NewPciRootBridgeInfo != NULL);
+    CopyMem (NewPciRootBridgeInfo, &PciRootBridgeInfo, Length);
+    DEBUG ((DEBUG_INFO, "Created PCI root bridg info hob\n"));
+  }
   //
   // Parse memory info and build memory HOBs for reserved DRAM and MMIO
   //
