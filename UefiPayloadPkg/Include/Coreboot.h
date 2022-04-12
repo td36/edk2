@@ -245,6 +245,7 @@ struct cb_cbmem_tab {
 #define CBMEM_ID_IMD_SMALL      0x53a11439
 #define CBMEM_ID_FMAP           0x464d4150
 #define CBMEM_ID_CBFS_RO_MCACHE 0x524d5346
+#define CBMEM_ID_FSP_RUNTIME    0x52505346
 #define MCACHE_MAGIC_FILE       0x454c4946
 #define MCACHE_MAGIC_FULL       0x4c4c5546
 #define MCACHE_MAGIC_END        0x444e4524
