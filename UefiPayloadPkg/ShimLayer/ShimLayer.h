@@ -42,6 +42,7 @@
 #include <Protocol/PciRootBridgeIo.h>
 #include <Protocol/PciHostBridgeResourceAllocation.h>
 #include "IioUniversalDataHob.h"
+#include <UniversalPayload/LinuxCommandLine.h>
 
 #define LEGACY_8259_MASK_REGISTER_MASTER  0x21
 #define LEGACY_8259_MASK_REGISTER_SLAVE   0xA1

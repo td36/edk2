@@ -52,6 +52,7 @@
   gUniversalPayloadSerialPortInfoGuid
   gUniversalPayloadExtraDataGuid
   gUniversalPayloadPciRootBridgeInfoGuid
+  gUniversalPayloadLinuxCommandLineGuid
 
 
 [Pcd.IA32,Pcd.X64]
@@ -68,6 +69,7 @@
   gUefiPayloadPkgTokenSpaceGuid.PcdPayloadFdMemSize
   gUefiPayloadPkgTokenSpaceGuid.PcdBootloaderParameter
   gUefiPayloadPkgTokenSpaceGuid.PcdSystemMemoryUefiRegionSize
+  gUefiPayloadPkgTokenSpaceGuid.PcdLinuxCommandLine
 
   gEfiMdeModulePkgTokenSpaceGuid.PcdSetNxForStack               ## SOMETIMES_CONSUMES
   gEfiMdeModulePkgTokenSpaceGuid.PcdDxeNxMemoryProtectionPolicy ## SOMETIMES_CONSUMES

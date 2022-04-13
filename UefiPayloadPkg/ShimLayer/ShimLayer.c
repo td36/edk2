@@ -435,6 +435,8 @@ BuildHobFromBl (
   UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES PciRootBridgeInfo;
   UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES *NewPciRootBridgeInfo;
   UINT32                             Length;
+  CHAR16                               *LinuxCommandLine;
+  UNIVERSAL_PAYLOAD_LINUX_COMMAND_LINE *LinuxCommandLineHob;
 
   //
   // First find TOLUD
@@ -501,6 +503,21 @@ BuildHobFromBl (
     DEBUG ((DEBUG_INFO, "Detected ACPI Table at 0x%lx\n", AcpiTableHob->Rsdp));
   }
 
+  //
+  // Creat LinuxCommandLine Hob
+  //
+  LinuxCommandLine = (CHAR16 *)PcdGetPtr (PcdLinuxCommandLine);
+  Length = StrLen (LinuxCommandLine) + sizeof (UNIVERSAL_PAYLOAD_LINUX_COMMAND_LINE) + 1;
+  LinuxCommandLineHob = BuildGuidHob (&gUniversalPayloadLinuxCommandLineGuid, Length);
+  LinuxCommandLineHob->Header.Revision = UNIVERSAL_PAYLOAD_LINUX_COMMAND_LINE_REVISION;
+  LinuxCommandLineHob->Header.Length   = Length;
+  LinuxCommandLineHob->Count = StrLen (LinuxCommandLine);
+  UnicodeStrToAsciiStrS (LinuxCommandLine, LinuxCommandLineHob->CommandLine, StrLen (LinuxCommandLine) + 1);
+  DEBUG ((DEBUG_INFO, "   LinuxCommandLine = %a\n", LinuxCommandLineHob->CommandLine));
+
+  //
+  // Creat PciRootBridge Hob
+  //
   Status = ParseRootBridgeInfo (&PciRootBridgeInfo);
   if (!EFI_ERROR (Status)) {
     Length = sizeof(UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGES) + PciRootBridgeInfo.Count * sizeof(UNIVERSAL_PAYLOAD_PCI_ROOT_BRIDGE);

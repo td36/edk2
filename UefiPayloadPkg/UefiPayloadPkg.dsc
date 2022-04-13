@@ -411,6 +411,7 @@
 
   gUefiPayloadPkgTokenSpaceGuid.PcdDispatchModuleAbove4GMemory|$(ABOVE_4G_MEMORY)
   gUefiPayloadPkgTokenSpaceGuid.PcdBootManagerEscape|$(BOOT_MANAGER_ESCAPE)
+  gUefiPayloadPkgTokenSpaceGuid.PcdLinuxCommandLine|L"loglevel=7 earlyprintk=serial,ttyS0,115200 console=ttyS0,115200 disable_mtrr_cleanup"
 
 [PcdsPatchableInModule.X64]
   gPcAtChipsetPkgTokenSpaceGuid.PcdRtcIndexRegister|$(RTC_INDEX_REGISTER)
