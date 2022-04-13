@@ -89,6 +89,9 @@ gUefiPayloadPkgTokenSpaceGuid.PcdDispatchModuleAbove4GMemory|TRUE|BOOLEAN|0x0000
 # Boot Manager Key
 gUefiPayloadPkgTokenSpaceGuid.PcdBootManagerEscape|FALSE|BOOLEAN|0x00000020
 
+## Used to generate LinuxCommandLine HOB
+gUefiPayloadPkgTokenSpaceGuid.PcdLinuxCommandLine|L"HelloWorld"|VOID*|0x00000019
+
 ## FFS filename to find the default variable initial data file.
 # @Prompt FFS Name of variable initial data file
  gUefiPayloadPkgTokenSpaceGuid.PcdNvsDataFile |{ 0x1a, 0xf1, 0xb1, 0xae, 0x42, 0xcc, 0xcf, 0x4e, 0xac, 0x60, 0xdb, 0xab, 0xf6, 0xca, 0x69, 0xe6 }|VOID*|0x00000025
