@@ -181,6 +181,7 @@ INF MdeModulePkg/Bus/Isa/Ps2MouseDxe/Ps2MouseDxe.inf
 #
 # Console Support
 #
+INF OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
 INF MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
 INF MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
 INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf

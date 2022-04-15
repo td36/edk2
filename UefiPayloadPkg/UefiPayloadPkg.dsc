@@ -513,6 +513,7 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdTestKeyUsed|FALSE
   gUefiCpuPkgTokenSpaceGuid.PcdSevEsIsEnabled|0
   gEfiMdeModulePkgTokenSpaceGuid.PcdPciDisableBusEnumeration|TRUE
+  gUefiOvmfPkgTokenSpaceGuid.PcdOvmfHostBridgePciDevId|0x1237
 
 ################################################################################
 #
@@ -678,6 +679,7 @@
   #
   # Console Support
   #
+  OvmfPkg/QemuVideoDxe/QemuVideoDxe.inf
   MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
   MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
   MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
