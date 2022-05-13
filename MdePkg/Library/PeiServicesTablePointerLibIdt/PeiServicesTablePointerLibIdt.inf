@@ -30,6 +30,8 @@
 
 [Sources]
   PeiServicesTablePointer.c
+  WriteFsBase.nasm
+  ReadFsBase.nasm
 
 
 [LibraryClasses]

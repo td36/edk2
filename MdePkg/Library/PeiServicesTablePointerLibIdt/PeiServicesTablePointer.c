@@ -15,6 +15,17 @@
 #include <Library/PeiServicesTablePointerLib.h>
 #include <Library/DebugLib.h>
 #include <Library/BaseMemoryLib.h>
+VOID
+EFIAPI
+AsmWriteFsBase (
+  UINT64  FsBase
+  );
+
+UINT64
+EFIAPI
+AsmReadFsBase (
+  VOID
+  );
 
 /**
   Retrieves the cached value of the PEI Services Table pointer.
@@ -35,10 +46,8 @@ GetPeiServicesTablePointer (
   )
 {
   CONST EFI_PEI_SERVICES  **PeiServices;
-  IA32_DESCRIPTOR         Idtr;
 
-  AsmReadIdtr (&Idtr);
-  PeiServices = (CONST EFI_PEI_SERVICES **)(*(UINTN *)(Idtr.Base - sizeof (UINTN)));
+  PeiServices = (CONST EFI_PEI_SERVICES **)(UINTN)AsmReadFsBase ();
   ASSERT (PeiServices != NULL);
   return PeiServices;
 }
@@ -62,11 +71,8 @@ SetPeiServicesTablePointer (
   IN CONST EFI_PEI_SERVICES  **PeiServicesTablePointer
   )
 {
-  IA32_DESCRIPTOR  Idtr;
-
   ASSERT (PeiServicesTablePointer != NULL);
-  AsmReadIdtr (&Idtr);
-  (*(UINTN *)(Idtr.Base - sizeof (UINTN))) = (UINTN)PeiServicesTablePointer;
+  AsmWriteFsBase ((UINTN)PeiServicesTablePointer);
 }
 
 /**
@@ -91,6 +97,7 @@ MigratePeiServicesTablePointer (
   VOID
   )
 {
+  /*
   EFI_STATUS              Status;
   IA32_DESCRIPTOR         Idtr;
   EFI_PHYSICAL_ADDRESS    IdtBase;
@@ -118,6 +125,6 @@ MigratePeiServicesTablePointer (
   CopyMem ((VOID *)(UINTN)IdtBase, (VOID *)(Idtr.Base - sizeof (UINTN)), Idtr.Limit + 1 + sizeof (UINTN));
   Idtr.Base = (UINTN)IdtBase + sizeof (UINTN);
   AsmWriteIdtr (&Idtr);
-
+  */
   return;
 }
