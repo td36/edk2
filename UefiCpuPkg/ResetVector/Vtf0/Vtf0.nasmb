@@ -54,7 +54,6 @@
   %endif
 %elifdef ARCH_P64
   %include "X64/PageTables1G.asm"
-  %include "P64/InitialPageTables.asm"
 %endif
 
 %ifdef DEBUG_PORT80
@@ -76,8 +75,6 @@ BITS 32
 %ifdef ARCH_X64
   %include "Ia32/Flat32ToFlat64.asm"
   %include "Ia32/PageTables64.asm"
-%elifdef ARCH_P64
-  %include "P64/PageTables64.asm"
 %endif
 
 %ifdef ARCH_P64

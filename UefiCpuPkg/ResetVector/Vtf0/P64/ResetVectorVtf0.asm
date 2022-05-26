@@ -20,9 +20,7 @@ ALIGN   16
 ; This is required so the page tables will be 4k aligned when VTF0 is
 ; located just below 0x100000000 (4GB) in the firmware device.
 ;
-%ifdef ALIGN_TOP_TO_4K_FOR_PAGING
-    TIMES (0x1000 - ($ - EndOfInitialPageTables) - 0x18) DB 0
-%endif
+TIMES (0x1000 - ($ - EndOfPageTables) - 0x18) DB 0
 
 ALIGN   8
 

@@ -32,14 +32,6 @@ BITS    64
 
 ALIGN 16
 
-TopLevelPageDirectory:
-
-    ;
-    ; Top level Page Directory Pointers (1 * 512GB entry)
-    ;
-    DQ      PDP(0x1000)
-
-    TIMES 0x1000-PGTBLS_OFFSET($) DB 0
     ;
     ; Next level Page Directory Pointers (512 * 1GB entries => 512GB)
     ;
@@ -48,6 +40,14 @@ TopLevelPageDirectory:
     DQ    PDP_1G(i)
     %assign i i+1
 %endrep
-    TIMES 0x2000-PGTBLS_OFFSET($) DB 0
+
+TopLevelPageDirectory:
+
+    ;
+    ; Top level Page Directory Pointers (1 * 512GB entry)
+    ;
+    DQ      PDP(-0x1000)
+
+    TIMES 0x1000-PGTBLS_OFFSET($) DB 0
 
 EndOfPageTables:

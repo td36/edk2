@@ -48,8 +48,6 @@ Main64:
     ; EBP - Start of BFV
     ;
 
-    OneTimeCall SetCr3ForPageTables64
-
     ;
     ; Some values were calculated in 32-bit data.  Make sure the upper
     ; 32-bits of 64-bit registers are zero for these values.
