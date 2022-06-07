@@ -79,6 +79,7 @@
 [Pcd]
   gUefiCpuPkgTokenSpaceGuid.PcdPeiTemporaryRamStackSize  ## CONSUMES
   gEfiMdeModulePkgTokenSpaceGuid.PcdMigrateTemporaryRamFirmwareVolumes  ## CONSUMES
+  gUefiCpuPkgTokenSpaceGuid.PcdFredEnable
 
 [UserExtensions.TianoCore."ExtraFiles"]
   SecCoreExtra.uni

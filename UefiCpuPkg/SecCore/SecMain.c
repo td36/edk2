@@ -133,6 +133,68 @@ SecPerformancePpiCallBack (
 }
 
 /**
+  Return TRUE when FRED can be enabled.
+
+  @retval TRUE   FRED can be enabled.
+  @retval FALSE  FRED can NOT be enabled.
+**/
+BOOLEAN
+IsFredSupported (
+  VOID
+  )
+{
+  MSR_IA32_EFER_REGISTER                                  Efer;
+  UINT32                                                  MaxLeaf;
+  UINT32                                                  MaxSubLeaf;
+  CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_1_EAX  FeatureFlagsEax;
+
+  //
+  // FRED can only be enabled in long mode.
+  //
+  Efer.Uint64 = AsmReadMsr64 (MSR_IA32_EFER);
+  if (Efer.Bits.LMA == 0) {
+    return FALSE;
+  }
+
+  //
+  // Query the FRED capability from CPUID[EAX=7, ECX=1].EAX[17]
+  // 1. If max leaf < 7, FRED is not supported for sure.
+  //
+  AsmCpuid (CPUID_SIGNATURE, &MaxLeaf, NULL, NULL, NULL);
+  if (MaxLeaf < CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS) {
+    return FALSE;
+  }
+
+  //
+  // 2. if the max sub-leaf for CPU leaf 7 < 1, FRED is not supported for sure.
+  //
+  AsmCpuidEx (
+    CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS,
+    CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_INFO,
+    &MaxSubLeaf,
+    NULL,
+    NULL,
+    NULL
+    );
+  if (MaxSubLeaf < CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_1) {
+    return FALSE;
+  }
+
+  //
+  // 3. Check CPUID[EAX=7, ECX=1].EAX[17]
+  //
+  AsmCpuidEx (
+    CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS,
+    CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_1,
+    &FeatureFlagsEax.Uint32,
+    NULL,
+    NULL,
+    NULL
+    );
+  return (BOOLEAN)(FeatureFlagsEax.Bits.Fred == 1);
+}
+
+/**
 
   Entry point to the C language phase of SEC. After the SEC assembly
   code has initialized some temporary memory and set up the stack,
@@ -158,6 +220,7 @@ SecStartup (
   UINT32                Index;
   UINT32                PeiStackSize;
   EFI_STATUS            Status;
+  IA32_CR4              Cr4;
 
   //
   // Report Status Code to indicate entering SEC core
@@ -208,17 +271,22 @@ SecStartup (
   // |                   |
   // |                   |
   // |-------------------|---->  TempRamBase
+  if (FixedPcdGet32 (PcdFredEnable) && IsFredSupported ()) {
+    Cr4.UintN     = AsmReadCr4 ();
+    Cr4.Bits.FRED = 1;
+    AsmWriteCr4 (Cr4.UintN);
+  } else {
+    IdtTableInStack.PeiService = 0;
+    for (Index = 0; Index < SEC_IDT_ENTRY_COUNT; Index++) {
+      ZeroMem ((VOID *)&IdtTableInStack.IdtTable[Index], sizeof (IA32_IDT_GATE_DESCRIPTOR));
+      CopyMem ((VOID *)&IdtTableInStack.IdtTable[Index], (VOID *)&mIdtEntryTemplate, sizeof (UINT64));
+    }
 
-  IdtTableInStack.PeiService = 0;
-  for (Index = 0; Index < SEC_IDT_ENTRY_COUNT; Index++) {
-    ZeroMem ((VOID *)&IdtTableInStack.IdtTable[Index], sizeof (IA32_IDT_GATE_DESCRIPTOR));
-    CopyMem ((VOID *)&IdtTableInStack.IdtTable[Index], (VOID *)&mIdtEntryTemplate, sizeof (UINT64));
+    IdtDescriptor.Base  = (UINTN)&IdtTableInStack.IdtTable;
+    IdtDescriptor.Limit = (UINT16)(sizeof (IdtTableInStack.IdtTable) - 1);
+
+    AsmWriteIdtr (&IdtDescriptor);
   }
-
-  IdtDescriptor.Base  = (UINTN)&IdtTableInStack.IdtTable;
-  IdtDescriptor.Limit = (UINT16)(sizeof (IdtTableInStack.IdtTable) - 1);
-
-  AsmWriteIdtr (&IdtDescriptor);
 
   //
   // Setup the default exception handlers
