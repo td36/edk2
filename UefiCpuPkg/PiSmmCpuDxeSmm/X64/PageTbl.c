@@ -1221,16 +1221,14 @@ SetPageTableAttributes (
     DisableCet ();
   }
 
-  AsmWriteCr0 (AsmReadCr0 () & ~CR0_WP);
+  PageTableBase      = DisableReadOnlyPageWriteProtect ();
+  Cr4.UintN          = AsmReadCr4 ();
+  Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
 
   do {
     DEBUG ((DEBUG_INFO, "Start...\n"));
     PageTableSplitted = FALSE;
     L5PageTable       = NULL;
-
-    PageTableBase      = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
-    Cr4.UintN          = AsmReadCr4 ();
-    Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
 
     if (Enable5LevelPaging) {
       L5PageTable = (UINT64 *)PageTableBase;
@@ -1294,9 +1292,9 @@ SetPageTableAttributes (
   } while (PageTableSplitted);
 
   //
-  // Enable write protection, after page table updated.
+  // Restore Cr3 to original smm page table.
   //
-  AsmWriteCr0 (AsmReadCr0 () | CR0_WP);
+  EnableReadOnlyPageWriteProtect (PageTableBase);
   if (CetEnabled) {
     //
     // re-enable CET.

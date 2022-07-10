@@ -50,6 +50,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <Library/SmmCpuFeaturesLib.h>
 #include <Library/PeCoffGetEntryPointLib.h>
 #include <Library/RegisterCpuFeaturesLib.h>
+#include <Library/CpuPageTableLib.h>
 
 #include <AcpiCpuData.h>
 #include <CpuHotPlugData.h>
@@ -265,6 +266,7 @@ extern UINTN                 mNumberOfCpus;
 extern EFI_SMM_CPU_PROTOCOL  mSmmCpu;
 extern EFI_MM_MP_PROTOCOL    mSmmMp;
 extern BOOLEAN               m5LevelPagingNeeded;
+extern UINTN                 mSmmWritablePageTable;
 
 ///
 /// The mode of the CPU at the time an SMI occurs
@@ -1506,6 +1508,43 @@ SmmCpuRendezvous (
 VOID
 SmmWaitForApArrival (
   VOID
+  );
+
+/**
+  Create a new pagetable which reuses part of a original smm page table and remaps smram range.
+  The smram range is marked as RW in this new page table. Other range mapped by the same entry as smram is also set as RW.
+  The protection of original smm page table can be disabled by setting Cr3 to this new page table.
+
+  @param[in]  SmramPhysicalBase Physical base address of smram range. New page entry is created to map this range.
+  @param[in]  Length            Length of samram range. New page entry is created to map this range.
+
+  @retval PageTable             Address of new writable page table.
+**/
+UINTN
+CreateSmmWritablePageTable (
+  UINT64  SmramPhysicalBase,
+  UINT64  Length
+  );
+
+/**
+ Set Cr3 to the writable page table to modify protected RO original page table without clear CR0.WP.
+ The memory range used by original page table is marked as RW in the writable page table.
+
+ @return The address of original page table.
+**/
+UINTN
+DisableReadOnlyPageWriteProtect (
+  VOID
+  );
+
+/**
+ Enable Write Protect on pages marked as read-only.
+
+ @param OriginalCr3 Address of the original page table.
+**/
+VOID
+EnableReadOnlyPageWriteProtect (
+  UINTN  OriginalCr3
   );
 
 #endif

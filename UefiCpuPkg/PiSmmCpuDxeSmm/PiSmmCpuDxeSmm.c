@@ -1490,6 +1490,12 @@ PerformRemainingTasks (
       SetUefiMemMapAttributes ();
 
       //
+      // Initialize a new writable page table. The Smram range is RW in this new page table.
+      //
+      mSmmWritablePageTable = CreateSmmWritablePageTable (mCpuHotPlugData.SmrrBase, mCpuHotPlugData.SmrrSize);
+      DEBUG ((DEBUG_INFO, "mSmmWritablePageTable = 0x%x\n", mSmmWritablePageTable));
+
+      //
       // Set page table itself to be read-only
       //
       SetPageTableAttributes ();

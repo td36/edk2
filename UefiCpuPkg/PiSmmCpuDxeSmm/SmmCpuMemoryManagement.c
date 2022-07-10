@@ -35,6 +35,11 @@ PAGE_ATTRIBUTE_TABLE  mPageAttributeTable[] = {
 BOOLEAN  mIsShadowStack      = FALSE;
 BOOLEAN  m5LevelPagingNeeded = FALSE;
 
+//
+// A new writeble pagetable for smm. Smram range is RW in this page table.
+//
+UINTN  mSmmWritablePageTable = 0;
+
 /**
   Return length according to page attributes.
 
@@ -1615,4 +1620,93 @@ EdkiiSmmGetMemoryAttributes (
   } while (Size > 0);
 
   return EFI_SUCCESS;
+}
+
+/**
+ Set Cr3 to the writable page table to modify protected RO original page table without clear CR0.WP.
+ The memory range used by original page table is marked as RW in the writable page table.
+
+ @return The address of original page table.
+**/
+UINTN
+DisableReadOnlyPageWriteProtect (
+  VOID
+  )
+{
+  UINTN  WritablePageTable;
+  UINTN  OriginalCr3;
+
+  OriginalCr3       = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
+  WritablePageTable = mSmmWritablePageTable;
+  DEBUG ((DEBUG_INFO, "Set Cr3 to writable page table: 0x%x\n", WritablePageTable));
+  ASSERT (WritablePageTable != 0);
+  AsmWriteCr3 (WritablePageTable);
+
+  return OriginalCr3;
+}
+
+/**
+ Enable Write Protect on pages marked as read-only.
+
+ @param OriginalCr3 Address of the original page table.
+**/
+VOID
+EnableReadOnlyPageWriteProtect (
+  UINTN  OriginalCr3
+  )
+{
+  ASSERT (OriginalCr3 != 0);
+  DEBUG ((DEBUG_INFO, "Restore Cr3 to original page table: 0x%x\n", OriginalCr3));
+  AsmWriteCr3 (OriginalCr3);
+}
+
+/**
+  Create a new pagetable which reuses part of a original smm page table and remaps smram range.
+  The smram range is marked as RW in this new page table. Other range mapped by the same entry as smram is also set as RW.
+  The ReadOnly protection of original smm page table can be disabled by setting Cr3 to this new page table.
+
+  @param[in]  SmramPhysicalBase Physical base address of smram range. New page entry is created to map this range.
+  @param[in]  Length            Length of samram range. New page entry is created to map this range.
+
+  @retval PageTable             Address of new writable page table.
+**/
+UINTN
+CreateSmmWritablePageTable (
+  UINT64  SmramPhysicalBase,
+  UINT64  Length
+  )
+{
+  IA32_CR4       Cr4;
+  UINTN          PageTable;
+  UINTN          PageTableBufferSize;
+  VOID           *PageTableBuffer;
+  UINTN          MaxLevel;
+  BOOLEAN        Enable5LevelPaging;
+  RETURN_STATUS  Status;
+
+  DEBUG ((DEBUG_INFO, "Target Base and Limit to remap is: Base = 0x%x, Length = 0x%x\n", SmramPhysicalBase, Length));
+
+  Cr4.UintN = AsmReadCr4 ();
+  if (sizeof (UINTN) == sizeof (UINT32)) {
+    ASSERT (Cr4.Bits.PAE == 1);
+    MaxLevel = 3;
+  } else {
+    Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
+    MaxLevel           = Enable5LevelPaging ? 5 : 4;
+  }
+
+  PageTableBufferSize = 0;
+  PageTable           = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
+  Status              = PageTableRemapWritable (&PageTable, MaxLevel, NULL, &PageTableBufferSize, SmramPhysicalBase, Length);
+  if (Status == RETURN_BUFFER_TOO_SMALL) {
+    PageTableBuffer = AllocatePageTableMemory (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+    DEBUG ((DEBUG_INFO, "Smm RunTime: 0x%x bytes needed for a new writable page table\n", PageTableBufferSize));
+    ASSERT (PageTableBuffer != NULL);
+    Status = PageTableRemapWritable (&PageTable, MaxLevel, PageTableBuffer, &PageTableBufferSize, SmramPhysicalBase, Length);
+  }
+
+  ASSERT_EFI_ERROR (Status);
+  ASSERT (PageTableBufferSize == 0);
+
+  return PageTable;
 }

@@ -271,14 +271,12 @@ SetPageTableAttributes (
     DisableCet ();
   }
 
-  AsmWriteCr0 (AsmReadCr0 () & ~CR0_WP);
+  PageTableBase = DisableReadOnlyPageWriteProtect ();
+  L3PageTable   = (UINT64 *)PageTableBase;
 
   do {
     DEBUG ((DEBUG_INFO, "Start...\n"));
     PageTableSplitted = FALSE;
-
-    PageTableBase = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
-    L3PageTable   = (UINT64 *)PageTableBase;
 
     SmmSetMemoryAttributesEx (PageTableBase, FALSE, (EFI_PHYSICAL_ADDRESS)PageTableBase, SIZE_4KB, EFI_MEMORY_RO, &IsSplitted);
     PageTableSplitted = (PageTableSplitted || IsSplitted);
@@ -310,9 +308,9 @@ SetPageTableAttributes (
   } while (PageTableSplitted);
 
   //
-  // Enable write protection, after page table updated.
+  // Restore Cr3 to original smm page table.
   //
-  AsmWriteCr0 (AsmReadCr0 () | CR0_WP);
+  EnableReadOnlyPageWriteProtect (PageTableBase);
   if (CetEnabled) {
     //
     // re-enable CET.
