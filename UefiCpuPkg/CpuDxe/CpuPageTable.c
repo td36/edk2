@@ -645,45 +645,104 @@ IsReadOnlyPageWriteProtected (
 }
 
 /**
- Disable Write Protect on pages marked as read-only.
+ Set Cr3 to the writable page table to modify protected RO original page table without clear CR0.WP.
+ The memory range used by original page table is marked as RW in the writable page table.
+
+ @return The address of original page table address.
 **/
-VOID
+UINTN
 DisableReadOnlyPageWriteProtect (
   VOID
   )
 {
-  IA32_CR0  Cr0;
+  UINTN  OriginalCr3;
+  UINTN  WritablePageTable;
 
   //
   // To avoid unforseen consequences, don't touch paging settings in SMM mode
   // in this driver.
   //
+  OriginalCr3 = AsmReadCr3 ();
   if (!IsInSmm ()) {
-    Cr0.UintN   = AsmReadCr0 ();
-    Cr0.Bits.WP = 0;
-    AsmWriteCr0 (Cr0.UintN);
+    WritablePageTable = mWritablePageTable;
+    ASSERT (WritablePageTable != 0);
+    DEBUG ((DEBUG_INFO, "Set Cr3 to writable page table: 0x%x\n", WritablePageTable));
+    AsmWriteCr3 (WritablePageTable);
   }
+
+  return OriginalCr3;
 }
 
 /**
  Enable Write Protect on pages marked as read-only.
+
+ @param OriginalCr3 Address of the original page table.
 **/
 VOID
 EnableReadOnlyPageWriteProtect (
-  VOID
+  UINTN  OriginalCr3
   )
 {
-  IA32_CR0  Cr0;
-
   //
   // To avoid unforseen consequences, don't touch paging settings in SMM mode
   // in this driver.
   //
   if (!IsInSmm ()) {
-    Cr0.UintN   = AsmReadCr0 ();
-    Cr0.Bits.WP = 1;
-    AsmWriteCr0 (Cr0.UintN);
+    ASSERT (OriginalCr3 != 0);
+    DEBUG ((DEBUG_INFO, "Restor Cr3 to original page table: 0x%x\n", OriginalCr3));
+    AsmWriteCr3 (OriginalCr3);
   }
+}
+
+/**
+  Create a new writable pagetable which reuses part of original page table and remaps SystemMemory range.
+  SystemMemory is marked as RW in new page table. Other range mapped by the same entry as SystemMemory is also set as RW.
+  The ReadOnly protection of original page table can be disabled by setting Cr3 to new page table without clearing CR0.WP.
+
+  @param[in]  SystemMemoryBase  Physical base address of SystemMemory range. New page entry is created to map this range.
+  @param[in]  Length            Length of the SystemMemory range. New page entry is created to map this range.
+
+  @retval PageTable             Address of new writable page table.
+**/
+UINTN
+CreateWritablePageTable (
+  UINT64  SystemMemoryBase,
+  UINT64  Length
+  )
+{
+  IA32_CR4       Cr4;
+  UINTN          PageTable;
+  UINTN          PageTableBufferSize;
+  VOID           *PageTableBuffer;
+  UINTN          MaxLevel;
+  BOOLEAN        Enable5LevelPaging;
+  RETURN_STATUS  Status;
+
+  DEBUG ((DEBUG_INFO, "Target Base and Limit to remap is: Base = 0x%x, Length = 0x%x\n", SystemMemoryBase, Length));
+
+  Cr4.UintN = AsmReadCr4 ();
+  if (sizeof (UINTN) == sizeof (UINT32)) {
+    ASSERT (Cr4.Bits.PAE == 1);
+    MaxLevel = 3;
+  } else {
+    Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
+    MaxLevel           = Enable5LevelPaging ? 5 : 4;
+  }
+
+  PageTableBufferSize = 0;
+  PageTable           = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
+  Status              = PageTableRemapWritable (&PageTable, MaxLevel, NULL, &PageTableBufferSize, SystemMemoryBase, Length);
+  if (Status == RETURN_BUFFER_TOO_SMALL) {
+    PageTableBuffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+    DEBUG ((DEBUG_INFO, "CpuDxe: 0x%x bytes needed for a new writable page table\n", PageTableBufferSize));
+    ASSERT (PageTableBuffer != NULL);
+    Status = PageTableRemapWritable (&PageTable, MaxLevel, PageTableBuffer, &PageTableBufferSize, SystemMemoryBase, Length);
+  }
+
+  ASSERT_EFI_ERROR (Status);
+  ASSERT (PageTableBufferSize == 0);
+
+  return PageTable;
 }
 
 /**
@@ -735,6 +794,7 @@ ConvertMemoryPageAttributes (
   RETURN_STATUS                  Status;
   BOOLEAN                        IsEntryModified;
   BOOLEAN                        IsWpEnabled;
+  UINTN                          OriginalCr3;
 
   if ((BaseAddress & (SIZE_4KB - 1)) != 0) {
     DEBUG ((DEBUG_ERROR, "BaseAddress(0x%lx) is not aligned!\n", BaseAddress));
@@ -812,7 +872,7 @@ ConvertMemoryPageAttributes (
   //
   IsWpEnabled = IsReadOnlyPageWriteProtected ();
   if (IsWpEnabled) {
-    DisableReadOnlyPageWriteProtect ();
+    OriginalCr3 = DisableReadOnlyPageWriteProtect ();
   }
 
   //
@@ -873,7 +933,7 @@ Done:
   // Restore page table write protection, if any.
   //
   if (IsWpEnabled) {
-    EnableReadOnlyPageWriteProtect ();
+    EnableReadOnlyPageWriteProtect (OriginalCr3);
   }
 
   return Status;
@@ -1255,6 +1315,7 @@ DebugExceptionHandler (
   UINTN    CpuIndex;
   UINTN    PFEntry;
   BOOLEAN  IsWpEnabled;
+  UINTN    OriginalCr3;
 
   MpInitLibWhoAmI (&CpuIndex);
 
@@ -1263,7 +1324,7 @@ DebugExceptionHandler (
   //
   IsWpEnabled = IsReadOnlyPageWriteProtected ();
   if (IsWpEnabled) {
-    DisableReadOnlyPageWriteProtect ();
+    OriginalCr3 = DisableReadOnlyPageWriteProtect ();
   }
 
   for (PFEntry = 0; PFEntry < mPFEntryCount[CpuIndex]; PFEntry++) {
@@ -1273,7 +1334,7 @@ DebugExceptionHandler (
   }
 
   if (IsWpEnabled) {
-    EnableReadOnlyPageWriteProtect ();
+    EnableReadOnlyPageWriteProtect (OriginalCr3);
   }
 
   //

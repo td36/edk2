@@ -23,6 +23,12 @@ UINT64      mValidMtrrAddressMask;
 UINT64      mValidMtrrBitsMask;
 UINT64      mTimerPeriod = 0;
 
+//
+// A new writeble pagetable for non-smm.
+// SystemMemory range is RW in this page table.
+//
+UINTN  mWritablePageTable;
+
 FIXED_MTRR  mFixedMtrrTable[] = {
   {
     MSR_IA32_MTRR_FIX64K_00000,
@@ -1244,8 +1250,42 @@ InitializeCpu (
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
 {
-  EFI_STATUS  Status;
-  EFI_EVENT   IdleLoopEvent;
+  EFI_STATUS                       Status;
+  EFI_EVENT                        IdleLoopEvent;
+  EFI_GCD_MEMORY_SPACE_DESCRIPTOR  *MemorySpaceMap;
+  UINTN                            NumberOfDescriptors;
+  EFI_PHYSICAL_ADDRESS             BaseAddress;
+  EFI_PHYSICAL_ADDRESS             Limit;
+  UINTN                            Index;
+
+  //
+  // Get the rough system memory range.
+  //
+  Status = gDS->GetMemorySpaceMap (&NumberOfDescriptors, &MemorySpaceMap);
+  ASSERT_EFI_ERROR (Status);
+
+  BaseAddress = MAX_UINT64;
+  Limit       = 0;
+  for (Index = 0; Index < NumberOfDescriptors; Index++) {
+    if (MemorySpaceMap[Index].GcdMemoryType == EfiGcdMemoryTypeSystemMemory) {
+      if (MemorySpaceMap[Index].BaseAddress < BaseAddress) {
+        BaseAddress = MemorySpaceMap[Index].BaseAddress;
+      } else if (MemorySpaceMap[Index].BaseAddress + MemorySpaceMap[Index].Length > Limit) {
+        Limit = MemorySpaceMap[Index].BaseAddress + MemorySpaceMap[Index].Length;
+      }
+    }
+  }
+
+  //
+  // Free memory space map allocated by GCD service GetMemorySpaceMap ()
+  //
+  if (MemorySpaceMap != NULL) {
+    FreePool (MemorySpaceMap);
+  }
+
+  ASSERT (Limit > BaseAddress);
+  mWritablePageTable = CreateWritablePageTable (BaseAddress, Limit - BaseAddress);
+  DEBUG ((DEBUG_INFO, "mWritablePageTable = 0x%x\n", mWritablePageTable));
 
   InitializePageTableLib ();
 

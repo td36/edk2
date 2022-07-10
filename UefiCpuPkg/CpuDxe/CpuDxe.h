@@ -35,6 +35,7 @@
 #include <Library/ReportStatusCodeLib.h>
 #include <Library/MpInitLib.h>
 #include <Library/TimerLib.h>
+#include <Library/CpuPageTableLib.h>
 
 #include <Guid/IdleLoopEvent.h>
 #include <Guid/VectorHandoffTable.h>
@@ -295,5 +296,6 @@ PageFaultExceptionHandler (
 
 extern BOOLEAN  mIsAllocatingPageTable;
 extern UINTN    mNumberOfProcessors;
+extern UINTN    mWritablePageTable;
 
 #endif

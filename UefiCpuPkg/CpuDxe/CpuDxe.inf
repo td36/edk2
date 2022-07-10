@@ -41,6 +41,7 @@
   MpInitLib
   TimerLib
   PeCoffGetEntryPointLib
+  CpuPageTableLib
 
 [Sources]
   CpuDxe.c

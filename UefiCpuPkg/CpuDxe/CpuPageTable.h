@@ -153,4 +153,20 @@ GetPagingDetails (
   OUT UINT32                              **Attributes        OPTIONAL
   );
 
+/**
+  Create a new writable pagetable which reuses part of original page table and remaps SystemMemory range.
+  SystemMemory is marked as RW in new page table. Other range mapped by the same entry as SystemMemory is also set as RW.
+  The ReadOnly protection of original page table can be disabled by setting Cr3 to new page table without clearing CR0.WP.
+
+  @param[in]  SystemMemoryBase  Physical base address of SystemMemory range. New page entry is created to map this range.
+  @param[in]  Length            Length of the SystemMemory range. New page entry is created to map this range.
+
+  @retval PageTable             Address of new writable page table.
+**/
+UINTN
+CreateWritablePageTable (
+  UINT64  SystemMemoryBase,
+  UINT64  Length
+  );
+
 #endif
