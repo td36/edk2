@@ -30,8 +30,7 @@ SECTION .data
 DEFAULT REL
 SECTION .text
 
-ALIGN   4096    ; FRED entry should be in 4096 aligned address
-
+ALIGN   32
 ;-------------------------------------------------------------------------------------
 ;  VOID
 ;  EFIAPI
@@ -41,11 +40,35 @@ ALIGN   4096    ; FRED entry should be in 4096 aligned address
 ;-------------------------------------------------------------------------------------
 global ASM_PFX(AsmFredEntry)
 ASM_PFX(AsmFredEntry):
+AsmFredBegin:
+; The trampoline code is 32-byte long. It's a ring 0 FRED event when the entry RIP is
+; aligned at the 4K address. Because we only put the trampoline code in a 32-byte
+; aligned address, the worst case is the trampoline code is aligned in 32-byte but not
+; in 64-byte. To meet the FRED spec requirement that the FRED ring 3 handler should be
+; aligned in 4KB, we need (4096/32) trampoline pieces so the last one is just
+; aligned in 4KB. Because the ring 0 FRED handler is 256-byte after the ring 3 one,
+; we need 256/32 trampoline pieces additionally. In summary, we need
+; (4096/32 + 256/32) = (128 + 8) = 136 trampoline pieces.
+
+%assign Vector 0
+%rep  136
+OneTrampoline %+ Vector:
+    ; If current address is 4K align, which means excepiont happens in ring3
+    push    rax
+    lea     rax, [OneTrampoline %+ Vector]
+    and     ax,  ~0xfff
+    jz      AsmFredBeginRing3
+    jmp     AsmFredBeginRing0
+    TIMES   (32 - ($ - (OneTrampoline %+ Vector))) DB 0xCC
+%assign Vector Vector+1
+%endrep
+
+AsmFredBeginRing3:
 ; Entry of CPL 3 at offset 0
     jmp $
-    TIMES (256 - ($ - AsmFredEntry)) DB 0xcc
-
+AsmFredBeginRing0:
 ; Entry of CPL 0 at offset 256
+    pop     rax
     push    rcx
     push    rcx
 

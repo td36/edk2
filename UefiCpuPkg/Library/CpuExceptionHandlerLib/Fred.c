@@ -21,7 +21,11 @@ FredInitialize (
   VOID
   )
 {
-  AsmWriteMsr64 (IA32_FRED_CONFIG, (UINT64)(UINTN)AsmFredEntry);
+  UINT64  FredEntry4kAlign;
+
+  FredEntry4kAlign = ALIGN_VALUE ((UINT64)(UINTN)AsmFredEntry, SIZE_4KB);
+  DEBUG ((EFI_D_INFO, "FredEntry4kAlign = 0x%lx\n", FredEntry4kAlign));
+  AsmWriteMsr64 (IA32_FRED_CONFIG, FredEntry4kAlign);
   AsmWriteMsr64 (IA32_FRED_STKLVLS, 0);
   return EFI_SUCCESS;
 }
