@@ -36,6 +36,7 @@
   CpuExceptionCommon.h
   CpuExceptionCommon.c
   SecPeiCpuException.c
+  Fred.c
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -49,6 +50,10 @@
   LocalApicLib
   PeCoffGetEntryPointLib
   CcExitLib
+  CpuLib
+
+[Pcd]
+  gUefiCpuPkgTokenSpaceGuid.PcdCpuKnownGoodStackSize
 
 [Pcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdCpuStackGuard

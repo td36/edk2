@@ -30,6 +30,54 @@ SECTION .data
 DEFAULT REL
 SECTION .text
 
+ALIGN   4096    ; FRED entry should be in 4096 aligned address
+
+;-------------------------------------------------------------------------------------
+;  VOID
+;  EFIAPI
+;  AsmFredEntry (
+;    VOID
+;    );
+;-------------------------------------------------------------------------------------
+global ASM_PFX(AsmFredEntry)
+ASM_PFX(AsmFredEntry):
+; Entry of CPL 3 at offset 0
+    jmp $
+    TIMES (256 - ($ - AsmFredEntry)) DB 0xcc
+
+; Entry of CPL 0 at offset 256
+    push    rcx
+    push    rcx
+
+    ;
+    ; Stack:
+    ; +---------------------+ <-- 16-byte aligned ensured by processor
+    ; +    0                +
+    ; +---------------------+
+    ; +    Event Data       +
+    ; +---------------------+
+    ; +    Event Info       + <-- Error Code in low 2 bytes
+    ; +---------------------+
+    ; +    Old SS           +
+    ; +---------------------+
+    ; +    Old RSP          +
+    ; +---------------------+
+    ; +    RFlags           +
+    ; +---------------------+
+    ; +    CS               +
+    ; +---------------------+
+    ; +    RIP              +
+    ; +---------------------+ <-- FRED Stack Context prepared by processor
+    ; +    Old RCX          + <-- will replaced with Event Info (contain Error Code)
+    ; +---------------------+
+    ; +    Old RCX          +
+    ; +---------------------+ <-- RSP, 16-byte aligned
+    mov     rcx, qword [rsp + 16 + FRED_STACK_CONTEXT.EventInfo] ; RCX = Event Info
+    mov     qword [rsp + 8], rcx
+    xor     rcx, rcx
+    mov     ch, 1  ; CL = 1, indicating FRED
+    mov     cl, byte [rsp + 16 + FRED_STACK_CONTEXT.EventInfo + 4] ; CL = vector number, from 4th byte in Event Info
+    jmp     HasErrorCode
 ALIGN   8
 
 ; Generate 256 IDT vectors.
@@ -67,7 +115,7 @@ HookAfterStubHeaderEnd:
 ;---------------------------------------;
 ; CommonInterruptEntry                  ;
 ;---------------------------------------;
-; The follow algorithm is used for the common interrupt routine.
+; The follow algorithm is used for the common interrupt routine for IDT.
 ; Entry from each interrupt with a push eax and eax=interrupt number
 ; Stack frame would be as follows as specified in IA32 manuals:
 ;
@@ -82,12 +130,12 @@ HookAfterStubHeaderEnd:
 ; +---------------------+
 ; +    RIP              +
 ; +---------------------+
-; +    Error Code       +
+; +    Error Code(*)    +
 ; +---------------------+
-; +   Vector Number     +
+; +    Vector Number    +
 ; +---------------------+
-; +    RBP              +
-; +---------------------+ <-- RBP, 16-byte aligned
+; +    Old RAX          +
+; +---------------------+ <-- RSP, 16-byte aligned
 ; The follow algorithm is used for the common interrupt routine.
 global ASM_PFX(CommonInterruptEntry)
 ASM_PFX(CommonInterruptEntry):
@@ -113,14 +161,49 @@ NoErrorCode:
     push    qword [rsp]
     mov     qword [rsp + 8], 0
 HasErrorCode:
+; IDT and FRED handler will jump to here with following stack layout
+
+    ; CL = Vector Number
+    ; CH = 0: IDT, 1: FRED
+    ; Stack:
+    ; +---------------------+
+    ; +    Old SS           +
+    ; +---------------------+
+    ; +    Old RSP          +
+    ; +---------------------+
+    ; +    RFlags           +
+    ; +---------------------+
+    ; +    CS               +
+    ; +---------------------+
+    ; +    RIP              +
+    ; +---------------------+
+    ; +    Error Code       + <-- Every exception stack contains Error Code Now
+    ; +---------------------+
+    ; +    Old RCX          +
+    ; +---------------------+ <-- RSP
+
     push    rbp
     mov     rbp, rsp
     push    0             ; clear EXCEPTION_HANDLER_CONTEXT.OldIdtHandler
     push    0             ; clear EXCEPTION_HANDLER_CONTEXT.ExceptionDataFlag
 
+
+    ; FRED pushes 8 QWORDs in stack while IDT pushes 5 QWORDs.
+    ; Push another padding QWORD for FRED so that RSP is 16-byte aligned
+    ; when "push r15" is executed for both cases.
+    test ch, ch
+    jz .StackAligned16
+    push 0
+
+    ;
+    ; Since here the stack pointer is 16-byte aligned, so
+    ; EFI_FX_SAVE_STATE_X64 of EFI_SYSTEM_CONTEXT_x64
+    ; is 16-byte aligned
+    ;
+.StackAligned16:
     ;
     ; Stack:
-    ; +---------------------+ <-- 16-byte aligned ensured by processor
+    ; +---------------------+
     ; +    Old SS           +
     ; +---------------------+
     ; +    Old RSP          +
@@ -135,15 +218,14 @@ HasErrorCode:
     ; +---------------------+
     ; + RCX / Vector Number +
     ; +---------------------+
-    ; +    RBP              +
+    ; +    Old RBP          +
     ; +---------------------+ <-- RBP, 16-byte aligned
-    ;
-
-    ;
-    ; Since here the stack pointer is 16-byte aligned, so
-    ; EFI_FX_SAVE_STATE_X64 of EFI_SYSTEM_CONTEXT_x64
-    ; is 16-byte aligned
-    ;
+    ; +   0 (OldIdtHandler) +
+    ; +---------------------+
+    ; +0 (ExceptionDataFlag)+
+    ; +---------------------+ <-- RSP, 16-byte aligned, IDT
+    ; +  padding for FRED   +
+    ; +---------------------+ <-- RSP, 16-byte aligned, FRED
 
 ;; UINT64  Rdi, Rsi, Rbp, Rsp, Rbx, Rdx, Rcx, Rax;
 ;; UINT64  R8, R9, R10, R11, R12, R13, R14, R15;
@@ -187,12 +269,14 @@ HasErrorCode:
     xor     rax, rax
     push    rax
     push    rax
+    cmp     byte [rbp + 8 + 1], 1  ; check if FRED
+    je      SkipSidt
     sidt    [rsp]
     mov     bx, word [rsp]
     mov     rax, qword [rsp + 2]
     mov     qword [rsp], rax
     mov     word [rsp + 8], bx
-
+SkipSidt:
     xor     rax, rax
     push    rax
     push    rax
@@ -270,6 +354,7 @@ DrFinish:
 
 ;; Prepare parameter and call
     mov     rcx, [rbp + 8]
+    and     rcx, 0xff
     mov     rdx, rsp
     ;
     ; Per X64 calling convention, allocate maximum parameter stack space
@@ -400,6 +485,30 @@ CetDone:
     mov     rsp, rbp
     pop     rbp
     add     rsp, 16
+
+    ;
+    ; Stack:
+    ; +---------------------+
+    ; +    Old SS           +
+    ; +---------------------+
+    ; +    Old RSP          +
+    ; +---------------------+
+    ; +    RFlags           +
+    ; +---------------------+
+    ; +    CS               +
+    ; +---------------------+
+    ; +    RIP              +
+    ; +---------------------+ <-- RSP, 16-byte aligned
+    ; +    Error Code       +
+    ; +---------------------+
+    ; + RCX / Vector Number +
+    ; +---------------------+ <-- RSP - 16
+    ; +    RBP              +
+    ; +---------------------+
+    ; +   0 (OldIdtHandler) +
+    ; +---------------------+ <-- RSP - 32
+    ; +0 (ExceptionDataFlag)+
+    ; +---------------------+ <-- RSP - 40
     cmp     qword [rsp - 32], 0  ; check EXCEPTION_HANDLER_CONTEXT.OldIdtHandler
     jz      DoReturn
     cmp     qword [rsp - 40], 1  ; check EXCEPTION_HANDLER_CONTEXT.ExceptionDataFlag
@@ -410,6 +519,8 @@ ErrorCode:
     jmp     qword [rsp - 24]
 
 DoReturn:
+    cmp     byte [rsp - 16 + 1], 1  ; check if FRED
+    je      DoEret
     cmp     qword [ASM_PFX(mDoFarReturnFlag)], 0   ; Check if need to do far return instead of IRET
     jz      DoIret
     push    rax
@@ -423,6 +534,8 @@ DoReturn:
     retfq
 DoIret:
     iretq
+DoEret:
+    ERETS
 
 ;-------------------------------------------------------------------------------------
 ;  GetTemplateAddressMap (&AddressMap);

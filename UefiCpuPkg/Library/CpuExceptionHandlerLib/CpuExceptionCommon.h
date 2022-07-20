@@ -19,6 +19,7 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/SynchronizationLib.h>
 #include <Library/CpuExceptionHandlerLib.h>
+#include <Library/CpuLib.h>
 
 #define  CPU_EXCEPTION_NUM    32
 #define  CPU_INTERRUPT_NUM    256
@@ -35,6 +36,16 @@
 #define IA32_PF_EC_PK    BIT5
 #define IA32_PF_EC_SS    BIT6
 #define IA32_PF_EC_SGX   BIT15
+
+//
+// FRED related MSR address
+//
+#define IA32_FRED_CONFIG   0x1D4
+#define IA32_FRED_RSP0     0x1CC
+#define IA32_FRED_RSP1     0x1CD
+#define IA32_FRED_RSP2     0x1CE
+#define IA32_FRED_RSP3     0x1CF
+#define IA32_FRED_STKLVLS  0x1D0
 
 #include "ArchInterruptDefs.h"
 
@@ -67,6 +78,15 @@ typedef struct {
 
 extern CONST UINT32  mErrorCodeFlag;
 extern CONST UINTN   mDoFarReturnFlag;
+
+/**
+  Assembly code for FRED entry.
+**/
+VOID
+EFIAPI
+AsmFredEntry (
+  VOID
+  );
 
 /**
   Return address map of exception handler template so that C code can generate
@@ -319,6 +339,34 @@ VOID
 EFIAPI
 AsmGetTssTemplateMap (
   OUT EXCEPTION_HANDLER_TEMPLATE_MAP  *AddressMap
+  );
+
+/**
+  Initializes FRED exceptions entry and provides the default exception handlers.
+
+  @retval EFI_SUCCESS    The FRED exceptions have been successfully initialized .
+**/
+EFI_STATUS
+FredInitialize (
+  VOID
+  );
+
+/**
+  Setup separate stacks for certain exception handlers for FRED.
+
+  @param[in]  Buffer        Point to buffer used to separate exception stack.
+  @param[in]  BufferSize    On input, it indicates the byte size of Buffer. If the
+                            size is not enough, the return status will be
+                            EFI_BUFFER_TOO_SMALL, and output BufferSize will be
+                            the size it needs.
+
+  @retval EFI_SUCCESS             The stacks are assigned successfully.
+  @retval EFI_BUFFER_TOO_SMALL    This BufferSize is too small.
+**/
+EFI_STATUS
+FredInitializeSeparateExceptionStacks (
+  IN     VOID   *Buffer,
+  IN OUT UINTN  *BufferSize
   );
 
 #endif

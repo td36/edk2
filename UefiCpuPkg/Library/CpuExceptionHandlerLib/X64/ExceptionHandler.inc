@@ -4,6 +4,17 @@
 ;------------------------------------------------------------------------------
 %include "Nasm.inc"
 
+struc FRED_STACK_CONTEXT
+  .OldRip:        CTYPE_UINT64 1
+  .OldCs:         CTYPE_UINT64 1
+  .OldRflags:     CTYPE_UINT64 1
+  .OldRsp:        CTYPE_UINT64 1
+  .OldSs:         CTYPE_UINT64 1
+  .EventInfo:     CTYPE_UINT64 1
+  .EventData:     CTYPE_UINT64 1
+  .MustBeZero:    CTYPE_UINT64 1
+endstruc
+
 ;
 ; Equivalent NASM structure of IA32_DESCRIPTOR
 ;

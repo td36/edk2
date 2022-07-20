@@ -37,6 +37,7 @@
   CpuExceptionCommon.c
   PeiCpuException.c
   PeiDxeSmmCpuException.c
+  Fred.c
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -53,6 +54,7 @@
   MemoryAllocationLib
   SynchronizationLib
   CcExitLib
+  CpuLib
 
 [Pcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdCpuStackGuard    # CONSUMES

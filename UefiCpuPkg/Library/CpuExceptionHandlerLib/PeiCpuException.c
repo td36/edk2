@@ -15,6 +15,11 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 CONST UINTN  mDoFarReturnFlag = 0;
 
+//
+//  Store the global variable for FRED
+//
+VOID  *gTemporaryStorage;
+
 typedef struct {
   UINT8                     ExceptionStubHeader[HOOKAFTER_STUB_SIZE];
   EXCEPTION_HANDLER_DATA    *ExceptionHandlerData;
@@ -37,6 +42,10 @@ GetExceptionHandlerData (
   IA32_DESCRIPTOR           IdtDescriptor;
   IA32_IDT_GATE_DESCRIPTOR  *IdtTable;
   EXCEPTION0_STUB_HEADER    *Exception0StubHeader;
+
+  if (IsFredEnabled ()) {
+    return gTemporaryStorage;
+  }
 
   AsmReadIdtr (&IdtDescriptor);
   IdtTable = (IA32_IDT_GATE_DESCRIPTOR *)IdtDescriptor.Base;
@@ -62,6 +71,11 @@ SetExceptionHandlerData (
   EXCEPTION0_STUB_HEADER    *Exception0StubHeader;
   IA32_DESCRIPTOR           IdtDescriptor;
   IA32_IDT_GATE_DESCRIPTOR  *IdtTable;
+
+  if (IsFredEnabled ()) {
+    gTemporaryStorage = ExceptionHandlerData;
+    return;
+  }
 
   //
   // Duplicate the exception #0 stub header in pool and cache the ExceptionHandlerData just after the stub header.
@@ -208,6 +222,10 @@ InitializeSeparateExceptionStacks (
 {
   if ((Buffer == NULL) && (BufferSize == NULL)) {
     return EFI_UNSUPPORTED;
+  }
+
+  if (IsFredEnabled ()) {
+    return FredInitializeSeparateExceptionStacks (Buffer, BufferSize);
   }
 
   return IdtInitializeSeparateExceptionStacks (Buffer, BufferSize);

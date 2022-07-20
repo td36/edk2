@@ -454,3 +454,18 @@ ASM_PFX(AsmVectorNumFixup):
     mov     ecx, [esp + 4]
     mov     [ecx + (VectorNum - 4 - HookAfterStubBegin)], al
     ret
+
+;-------------------------------------------------------------------------------------
+;  FRED only support X64, so for IA32, this assembly code should be never called.
+;  Define it here just to pass build.
+;
+;  VOID
+;  EFIAPI
+;  AsmFredEntry (
+;    VOID
+;    );
+;-------------------------------------------------------------------------------------
+global ASM_PFX(AsmFredEntry)
+ASM_PFX(AsmFredEntry):
+    jmp $
+    ret

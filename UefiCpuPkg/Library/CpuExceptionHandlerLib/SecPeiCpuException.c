@@ -117,6 +117,10 @@ InitializeCpuExceptionHandlers (
   UINTN                           Index;
   UINTN                           InterruptHandler;
 
+  if (IsFredEnabled ()) {
+    return FredInitialize ();
+  }
+
   if (VectorInfo != NULL) {
     SetMem ((VOID *)ReservedVectorData, sizeof (RESERVED_VECTORS_DATA) * CPU_EXCEPTION_NUM, 0xff);
     Status = ReadAndVerifyVectorInfo (VectorInfo, ReservedVectorData, CPU_EXCEPTION_NUM);
@@ -220,5 +224,8 @@ InitializeSeparateExceptionStacks (
   IN OUT UINTN  *BufferSize
   )
 {
+  if (IsFredEnabled ()) {
+    return FredInitializeSeparateExceptionStacks (Buffer, BufferSize);
+  }
   return EFI_UNSUPPORTED;
 }

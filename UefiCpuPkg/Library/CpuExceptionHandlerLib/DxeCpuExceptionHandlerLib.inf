@@ -37,6 +37,7 @@
   CpuExceptionCommon.c
   PeiDxeSmmCpuException.c
   DxeException.c
+  Fred.c
 
 [Pcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdCpuStackGuard
@@ -61,3 +62,4 @@
   MemoryAllocationLib
   DebugLib
   CcExitLib
+  CpuLib

@@ -269,6 +269,9 @@ InitializeCpuExceptionHandlersWorker (
     }
   }
 
+  if (IsFredEnabled ()) {
+    return FredInitialize ();
+  }
   //
   // Setup the exception handlers according to IDT size, but no more than
   //   ExceptionHandlerData->IdtEntryCount (32 in PEI and SMM, 256 in DXE) handlers.

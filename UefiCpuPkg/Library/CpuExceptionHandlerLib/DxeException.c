@@ -131,5 +131,9 @@ InitializeSeparateExceptionStacks (
     Buffer          = mBuffer;
   }
 
-  return IdtInitializeSeparateExceptionStacks (Buffer, BufferSize);
+  if (IsFredEnabled ()) {
+    return FredInitializeSeparateExceptionStacks (Buffer, BufferSize);
+  } else {
+    return IdtInitializeSeparateExceptionStacks (Buffer, BufferSize);
+  }
 }
