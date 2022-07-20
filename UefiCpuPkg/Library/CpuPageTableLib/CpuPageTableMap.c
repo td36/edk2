@@ -688,3 +688,256 @@ PageTableMap (
 
   return Status;
 }
+
+/**
+  Create a new pagetable which reuses parts of original page table and remaps present ranges in target range [PhysicalAddress, PhysicalAddress + Length].
+  All present ranges in target range are marked as RW in new page table. Other range mapped by the same entry as target range is also set as RW.
+  The new pagetable is 1:1 mapping and this function assumes the input pagetable is 1:1 mapping.
+
+  @param[in]      OriginalParentPagingEntry The pointer to the original page table entry.
+  @param[in]      Level                     Page table level. Could be 5, 4, 3, 2 or 1.
+  @param[in]      PageTableBuffer           Pointer to the new page table buffer.
+  @param[in, out] BufferSize                The buffer size.
+                                            On return, the remaining buffer size.
+                                            Needed size for new page table is returned in the first call to this API with a 0 buffersize.
+  @param[in]      PhysicalAddress           Physical base address of target range. New page entry is created to map this target range.
+  @param[in]      Length                    Length of the target range. New page entry is created to map this target range.
+  @param[in]      RegionStart               Region start of the range mapped by input original page table.
+
+  @retval   RETURN_SUCCESS                  New writable pagetable is created successfully.
+**/
+RETURN_STATUS
+PageTableRemapWritableInLevel (
+  IN     IA32_PAGING_ENTRY  *OriginalParentPagingEntry,
+  IN     UINTN              Level,
+  IN     VOID               *PageTableBuffer,
+  IN OUT INTN               *BufferSize,
+  IN     UINT64             PhysicalAddress,
+  IN     UINT64             Length,
+  IN     UINT64             RegionStart
+  )
+{
+  RETURN_STATUS       Status;
+  IA32_PAGING_ENTRY   *NewParentPagingEntry;
+  IA32_PAGING_ENTRY   *OriginalNextLevelPT;
+  UINTN               Index;
+  UINT64              RegionLength;
+  IA32_MAP_ATTRIBUTE  OriginalAttribute;
+  BOOLEAN             LeafPFlag;
+  INTN                RemainingBufferSize;
+  INTN                TempBufferSize;
+
+  ASSERT (Level >= 1);
+  NewParentPagingEntry = NULL;
+  LeafPFlag            = FALSE;
+  *BufferSize         -= SIZE_4KB;
+  RemainingBufferSize  = *BufferSize;
+  RegionLength         = LShiftU64 (1, 12 + (Level - 1) * 9);
+
+  if ((PageTableBuffer != NULL) && (RemainingBufferSize >= 0)) {
+    //
+    // NewParentPagingEntry points to the last page in the remaining buffer.
+    //
+    NewParentPagingEntry = (IA32_PAGING_ENTRY *)((UINTN)PageTableBuffer + *BufferSize);
+  }
+
+  for (Index = 0; Index < 512; Index++, RegionStart += RegionLength) {
+    if ((PhysicalAddress < RegionStart + RegionLength) && (PhysicalAddress + Length > RegionStart) &&
+        (OriginalParentPagingEntry[Index].Pce.Present == 1))
+    {
+      if (IsPle (&OriginalParentPagingEntry[Index], Level)) {
+        LeafPFlag = TRUE;
+        //
+        // 1G, 2M or 4k page table. Only set the ReadWrite bit.
+        // The page size and MaxLevel of new page table is consistent with original page table.
+        // No page spit operation. Other range mapped by the same entry as target range is also set as RW.
+        //
+        if (NewParentPagingEntry != NULL) {
+          NewParentPagingEntry[Index].Uint64              = OriginalParentPagingEntry[Index].Uint64;
+          NewParentPagingEntry[Index].PleB.Bits.ReadWrite = 1;
+        }
+      } else {
+        //
+        // It is a non-leaf present entry.
+        //
+        TempBufferSize      = *BufferSize;
+        OriginalNextLevelPT = (IA32_PAGING_ENTRY *)(UINTN)(IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS (&OriginalParentPagingEntry[Index]));
+        //
+        // Recursively call to create a new next level page table to map target range when:
+        // 1. The region mapped by current page table entry overlaps the target range.
+        // 2. Original page table entry is not a leaf entry which points to physical memory.
+        //
+        Status = PageTableRemapWritableInLevel (
+                   OriginalNextLevelPT,
+                   Level - 1,
+                   PageTableBuffer,
+                   BufferSize,
+                   PhysicalAddress,
+                   Length,
+                   RegionStart
+                   );
+        if (RETURN_ERROR (Status)) {
+          return Status;
+        }
+
+        if (NewParentPagingEntry != NULL) {
+          ASSERT (*BufferSize <= TempBufferSize);
+          if (*BufferSize < TempBufferSize) {
+            //
+            // A page table sub-tree is succussfully created for the new non-leaf parent entry.
+            //
+            OriginalAttribute.Uint64                        = IA32_MAP_ATTRIBUTE_ATTRIBUTES (&OriginalParentPagingEntry[Index]);
+            NewParentPagingEntry[Index].Uint64              = (UINT64)((UINTN)PageTableBuffer + TempBufferSize - SIZE_4KB) | OriginalAttribute.Uint64;
+            NewParentPagingEntry[Index].Pnle.Bits.ReadWrite = 1;
+          } else {
+            NewParentPagingEntry[Index] = OriginalParentPagingEntry[Index];
+          }
+        }
+      }
+    } else {
+      //
+      // For non-present entries or entries which do not overlap the target range, copy the orignal entries.
+      //
+      if (NewParentPagingEntry != NULL) {
+        NewParentPagingEntry[Index] = OriginalParentPagingEntry[Index];
+      }
+    }
+  }
+
+  //
+  // Current level page table memory needs to be reverted when:
+  // 1. All present bits of leaf entries are 0.
+  // 2. No child page table is created for non-leaf entries.
+  //
+  if ((!LeafPFlag) && (RemainingBufferSize == *BufferSize)) {
+    *BufferSize += SIZE_4KB;
+  }
+
+  return RETURN_SUCCESS;
+}
+
+/**
+  Create a new IdentityPageTable which reuses parts of original page table and remaps present ranges in target range [PhysicalAddress, PhysicalAddress + Length].
+  All present ranges in target range are marked as RW in new page table. Other range mapped by the same entry as target range is also set as RW.
+  The new IdentityPageTable is 1:1 mapping and this function assumes the input IdentityPageTable is 1:1 mapping.
+
+  @param[in, out] IdentityPageTable        Pointer to original page table address.
+                                           On return, usually, a new identity mapping page table is returned.
+                                           However, it's possible that original page table is returned when input target range is not present in original page table.
+  @param[in]      MaxLevel                 Max level in original page table(Could be 5, 4 or 3).
+  @param[in]      Buffer                   Pointer to new page table buffer.
+  @param[in, out] BufferSize               The buffer size.
+                                           On return, the remaining buffer size.
+                                           Needed size for the new page table is returned in the first call to this API with a 0 buffersize.
+  @param[in]      PhysicalAddress          Physical base address of target range. New page entry is created to map this target range.
+  @param[in]      Length                   Length of the target range. New page entry is created to map this target range.
+
+  @retval RETURN_UNSUPPORTED               Paging MaxLevel is not supported.
+  @retval RETURN_INVALID_PARAMETER         IdentityPageTable, BufferSize is NULL.
+  @retval RETURN_INVALID_PARAMETER         Input original page table address is not valid.
+  @retval RETURN_INVALID_PARAMETER         *BufferSize is not multiple of 4KB or Buffer is not 4k-aligned.
+  @retval RETURN_BUFFER_TOO_SMALL          The buffer is too small for page table creation.
+                                           BufferSize is updated to indicate the expected buffer size.
+                                           Caller may still get RETURN_BUFFER_TOO_SMALL with the new BufferSize.
+  @retval RETURN_SUCCESS                   New writable page table is created successfully or required BufferSize is 0.
+**/
+RETURN_STATUS
+EFIAPI
+PageTableRemapWritable (
+  IN OUT UINTN   *IdentityPageTable,
+  IN     UINTN   MaxLevel,
+  IN     VOID    *Buffer,
+  IN OUT UINTN   *BufferSize,
+  IN     UINT64  PhysicalAddress,
+  IN     UINT64  Length
+  )
+{
+  RETURN_STATUS      Status;
+  INTN               RequiredSize;
+  VOID               *PageTableBuffer;
+  IA32_PAGING_ENTRY  *OriginalPageTable;
+
+  if ((MaxLevel > 5) || (MaxLevel < 3)) {
+    //
+    // 32bit paging are not supported.
+    //
+    return RETURN_UNSUPPORTED;
+  }
+
+  if ((BufferSize == NULL) || (IdentityPageTable == NULL)) {
+    return RETURN_INVALID_PARAMETER;
+  }
+
+  if (*IdentityPageTable == 0) {
+    //
+    // Input original page table address should be valid.
+    //
+    return RETURN_INVALID_PARAMETER;
+  }
+
+  if ((*BufferSize % SIZE_4KB != 0) || ((UINTN)Buffer % SIZE_4KB != 0)) {
+    //
+    // BufferSize should be multiple of 4K. Buffer should be 4k-aligned.
+    //
+    return RETURN_INVALID_PARAMETER;
+  }
+
+  if ((Buffer == NULL) && (*BufferSize != 0)) {
+    return RETURN_INVALID_PARAMETER;
+  }
+
+  OriginalPageTable = (IA32_PAGING_ENTRY *)(*IdentityPageTable);
+
+  //
+  // Query the required buffer size.
+  //
+  RequiredSize    = 0;
+  PageTableBuffer = NULL;
+  Status          = PageTableRemapWritableInLevel (
+                      OriginalPageTable,
+                      MaxLevel,
+                      PageTableBuffer,
+                      &RequiredSize,
+                      PhysicalAddress,
+                      Length,
+                      0
+                      );
+  if (RETURN_ERROR (Status)) {
+    return Status;
+  }
+
+  RequiredSize = -RequiredSize;
+  if ((UINTN)RequiredSize > *BufferSize) {
+    //
+    // Two or more pages are required since there must be a root and a child page table.
+    //
+    ASSERT (RequiredSize >= SIZE_8KB);
+    *BufferSize = RequiredSize;
+    return RETURN_BUFFER_TOO_SMALL;
+  }
+
+  if (RequiredSize == 0) {
+    //
+    // There is no present range in [PhysicalAddress, PhysicalAddress + Length].
+    //
+    return RETURN_SUCCESS;
+  }
+
+  //
+  // Create new page table when the supplied buffer is sufficient.
+  //
+  ASSERT ((Buffer != NULL) && (*BufferSize >= SIZE_4KB));
+  *IdentityPageTable = (UINTN)Buffer + *BufferSize - SIZE_4KB;
+  PageTableBuffer    = Buffer;
+  Status             = PageTableRemapWritableInLevel (
+                         OriginalPageTable,
+                         MaxLevel,
+                         PageTableBuffer,
+                         BufferSize,
+                         PhysicalAddress,
+                         Length,
+                         0
+                         );
+
+  return Status;
+}

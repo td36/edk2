@@ -126,4 +126,40 @@ PageTableParse (
   IN OUT UINTN           *MapCount
   );
 
+/**
+  Create a new IdentityPageTable which reuses parts of original page table and remaps present ranges in target range [PhysicalAddress, PhysicalAddress + Length].
+  All present ranges in target range are marked as RW in new page table. Other range mapped by the same entry as target range is also set as RW.
+  The new IdentityPageTable is 1:1 mapping and this function assumes the input IdentityPageTable is 1:1 mapping.
+
+  @param[in, out] IdentityPageTable        Pointer to original page table address.
+                                           On return, usually, a new identity mapping page table is returned.
+                                           However, it's possible that original page table is returned when input target range is not present in original page table.
+  @param[in]      MaxLevel                 Max level in original page table(Could be 5, 4 or 3).
+  @param[in]      Buffer                   Pointer to new page table buffer.
+  @param[in, out] BufferSize               The buffer size.
+                                           On return, the remaining buffer size.
+                                           Needed size for the new page table is returned in the first call to this API with a 0 buffersize.
+  @param[in]      PhysicalAddress          Physical base address of target range. New page entry is created to map this target range.
+  @param[in]      Length                   Length of the target range. New page entry is created to map this target range.
+
+  @retval RETURN_UNSUPPORTED               Paging MaxLevel is not supported.
+  @retval RETURN_INVALID_PARAMETER         IdentityPageTable, BufferSize is NULL.
+  @retval RETURN_INVALID_PARAMETER         Input original page table address is not valid.
+  @retval RETURN_INVALID_PARAMETER         *BufferSize is not multiple of 4KB or Buffer is not 4k-aligned.
+  @retval RETURN_BUFFER_TOO_SMALL          The buffer is too small for page table creation.
+                                           BufferSize is updated to indicate the expected buffer size.
+                                           Caller may still get RETURN_BUFFER_TOO_SMALL with the new BufferSize.
+  @retval RETURN_SUCCESS                   New writable page table is created successfully or required BufferSize is 0.
+**/
+RETURN_STATUS
+EFIAPI
+PageTableRemapWritable (
+  IN OUT UINTN   *IdentityPageTable,
+  IN     UINTN   MaxLevel,
+  IN     VOID    *Buffer,
+  IN OUT UINTN   *BufferSize,
+  IN     UINT64  PhysicalAddress,
+  IN     UINT64  Length
+  );
+
 #endif
