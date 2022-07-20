@@ -962,6 +962,29 @@ InitInterruptDescriptorTable (
 }
 
 /**
+  Initialize FRED Exception handler.
+
+**/
+VOID
+InitFredExceptionHandler (
+  VOID
+  )
+{
+  EFI_STATUS               Status;
+  EFI_VECTOR_HANDOFF_INFO  *VectorInfoList;
+  EFI_VECTOR_HANDOFF_INFO  *VectorInfo;
+
+  VectorInfo = NULL;
+  Status     = EfiGetSystemConfigurationTable (&gEfiVectorHandoffTableGuid, (VOID **)&VectorInfoList);
+  if ((Status == EFI_SUCCESS) && (VectorInfoList != NULL)) {
+    VectorInfo = VectorInfoList;
+  }
+
+  Status = InitializeCpuExceptionHandlers (VectorInfo);
+  ASSERT_EFI_ERROR (Status);
+}
+
+/**
   Callback function for idle events.
 
   @param  Event                 Event whose notification function is being invoked.
@@ -1238,10 +1261,14 @@ InitializeCpu (
   //
   InitGlobalDescriptorTable ();
 
-  //
-  // Setup IDT pointer, IDT and interrupt entry points
-  //
-  InitInterruptDescriptorTable ();
+  if (IsFredEnabled ()) {
+    InitFredExceptionHandler ();
+  } else {
+    //
+    // Setup IDT pointer, IDT and interrupt entry points
+    //
+    InitInterruptDescriptorTable ();
+  }
 
   //
   // Install CPU Architectural Protocol
