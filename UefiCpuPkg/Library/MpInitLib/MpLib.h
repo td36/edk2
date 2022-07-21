@@ -246,6 +246,12 @@ typedef struct {
   UINTN              CFunction;
   IA32_DESCRIPTOR    GdtrProfile;
   IA32_DESCRIPTOR    IdtrProfile;
+  BOOLEAN            EnableFred;
+  UINTN              FredConfig;
+  UINTN              FredStkLvls;
+  UINTN              FredRsp1;
+  UINTN              FredRsp2;
+  UINTN              FredRsp3;
   UINTN              BufferStart;
   UINTN              ModeOffset;
   UINTN              ApIndex;

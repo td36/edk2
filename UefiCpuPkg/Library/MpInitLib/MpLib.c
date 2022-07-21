@@ -1010,16 +1010,27 @@ FillExchangeInfoData (
     FillExchangeInfoDataSevEs (ExchangeInfo);
   }
 
+  if (IsFredEnabled ()) {
+    ExchangeInfo->EnableFred  = TRUE;
+    ExchangeInfo->FredConfig  = (UINTN)AsmReadMsr64 (IA32_FRED_CONFIG);
+    ExchangeInfo->FredStkLvls = (UINTN)AsmReadMsr64 (IA32_FRED_STKLVLS);
+    ExchangeInfo->FredRsp1    = (UINTN)AsmReadMsr64 (IA32_FRED_RSP1);
+    ExchangeInfo->FredRsp2    = (UINTN)AsmReadMsr64 (IA32_FRED_RSP2);
+    ExchangeInfo->FredRsp3    = (UINTN)AsmReadMsr64 (IA32_FRED_RSP3);
+  } else {
+    ExchangeInfo->EnableFred = FALSE;
+    AsmReadIdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->IdtrProfile);
+  }
+
   if (IsNewSipiEnabled ()) {
     ExchangeInfo->BufferStart = 0;
   } else {
     ExchangeInfo->CodeSegment = AsmReadCs ();
     ExchangeInfo->DataSegment = AsmReadDs ();
     //
-    // Get the BSP's data of GDT and IDT
+    // Get the BSP's data of GDT
     //
     AsmReadGdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->GdtrProfile);
-    AsmReadIdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->IdtrProfile);
     ExchangeInfo->EnableExecuteDisable = IsBspExecuteDisableEnabled ();
 
     //

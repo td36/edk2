@@ -73,6 +73,12 @@ struc MP_CPU_EXCHANGE_INFO
   .CFunction:                    CTYPE_UINTN 1
   .GdtrProfile:                  CTYPE_UINT8 IA32_DESCRIPTOR_size
   .IdtrProfile:                  CTYPE_UINT8 IA32_DESCRIPTOR_size
+  .EnableFred:                   CTYPE_BOOLEAN 1
+  .FredConfig:                   CTYPE_UINTN 1
+  .FredStkLvls:                  CTYPE_UINTN 1
+  .FredRsp1:                     CTYPE_UINTN 1
+  .FredRsp2:                     CTYPE_UINTN 1
+  .FredRsp3:                     CTYPE_UINTN 1
   .BufferStart:                  CTYPE_UINTN 1
   .ModeOffset:                   CTYPE_UINTN 1
   .ApIndex:                      CTYPE_UINTN 1

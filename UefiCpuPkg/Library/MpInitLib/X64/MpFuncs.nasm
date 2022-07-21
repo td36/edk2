@@ -15,6 +15,16 @@
 %include "MpEqu.inc"
 extern ASM_PFX(InitializeFloatingPointUnits)
 
+//
+// FRED related MSR address
+//
+IA32_FRED_CONFIG   EQU 0x1D4
+IA32_FRED_RSP0     EQU 0x1CC
+IA32_FRED_RSP1     EQU 0x1CD
+IA32_FRED_RSP2     EQU 0x1CE
+IA32_FRED_RSP3     EQU 0x1CF
+IA32_FRED_STKLVLS  EQU 0x1D0
+
 %macro  OneTimeCall 1
     jmp     %1
 %1 %+ OneTimerCallReturn:
@@ -156,10 +166,52 @@ NewSipiEntry:
 LongModeStart:
     mov        esi, ebx
 
+    ; Set IDT table or FRED MSR at the start of 64 bit code
+    lea        edi, [esi + MP_CPU_EXCHANGE_INFO_FIELD (EnableFred)]
+    cmp        byte [edi], 1       ; check if enable Fred
+    jz         InitFredForAp
+
     ; Set IDT table at the start of 64 bit code
     lea        edi, [esi + MP_CPU_EXCHANGE_INFO_FIELD (IdtrProfile)]
     lidt       [edi]
+    jmp        AfterEventHandlerSetup
+InitFredForAp:
+    ; Set FRED MSR at the start of 64 bit code
+    mov        ecx, IA32_FRED_CONFIG
+    mov        rax, [esi + MP_CPU_EXCHANGE_INFO_FIELD (FredConfig)]
+    mov        rdx, rax
+    shr        rdx, 0x20
+    wrmsr
+    ;
+    mov        ecx, IA32_FRED_RSP1
+    mov        rax, [esi + MP_CPU_EXCHANGE_INFO_FIELD (FredRsp1)]
+    mov        rdx, rax
+    shr        rdx, 0x20
+    wrmsr
+    ;
+    mov        ecx, IA32_FRED_RSP2
+    mov        rax, [esi + MP_CPU_EXCHANGE_INFO_FIELD (FredRsp2)]
+    mov        rdx, rax
+    shr        rdx, 0x20
+    wrmsr
+    ;
+    mov        ecx, IA32_FRED_RSP3
+    mov        rax, [esi + MP_CPU_EXCHANGE_INFO_FIELD (FredRsp3)]
+    mov        rdx, rax
+    shr        rdx, 0x20
+    wrmsr
+    ;
+    mov        ecx, IA32_FRED_STKLVLS
+    mov        rax, [esi + MP_CPU_EXCHANGE_INFO_FIELD (FredStkLvls)]
+    mov        rdx, rax
+    shr        rdx, 0x20
+    wrmsr
 
+    ; Set CR4.FRED bit to enable FRED for AP
+    mov     rax, cr4
+    or      rax, (1 << 32)
+    mov     cr4, rax
+AfterEventHandlerSetup:
     lea        edi, [esi + MP_CPU_EXCHANGE_INFO_FIELD (InitFlag)]
     cmp        qword [edi], 1       ; ApInitConfig
     jnz        GetApicId
