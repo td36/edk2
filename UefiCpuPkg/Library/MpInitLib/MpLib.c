@@ -1861,6 +1861,7 @@ MpInitLibInitialize (
   UINTN                      ApIdtBase;
   ENTRY_STRUCT               *Entry;
   MSR_ENTRY_STRUCT_REGISTER  EntryMsr;
+  UINTN                      ApIdtLength;
 
   OldCpuMpData = GetCpuMpDataFromGuidedHob ();
   if (OldCpuMpData == NULL) {
@@ -1884,6 +1885,7 @@ MpInitLibInitialize (
   // Save BSP's Control registers for APs.
   //
   SaveVolatileRegisters (&VolatileRegisters);
+  ApIdtLength = (UINT16)(VolatileRegisters.Idtr.Limit + 1);
 
   BufferSize = ApStackSize * MaxLogicalProcessorNumber;
   //
@@ -1893,7 +1895,7 @@ MpInitLibInitialize (
   BufferSize += MonitorFilterSize * MaxLogicalProcessorNumber;
   BufferSize += ApResetVectorSizeBelow1Mb;
   BufferSize  = ALIGN_VALUE (BufferSize, 8);
-  BufferSize += VolatileRegisters.Idtr.Limit + 1;
+  BufferSize += ApIdtLength;
   BufferSize += sizeof (CPU_MP_DATA);
   BufferSize += (sizeof (CPU_AP_DATA) + sizeof (CPU_INFO_IN_HOB))* MaxLogicalProcessorNumber;
   MpBuffer    = AllocatePages (EFI_SIZE_TO_PAGES (BufferSize));
@@ -1925,7 +1927,7 @@ MpInitLibInitialize (
   MonitorBuffer               = (UINT8 *)(Buffer + ApStackSize * MaxLogicalProcessorNumber);
   BackupBufferAddr            = (UINTN)MonitorBuffer + MonitorFilterSize * MaxLogicalProcessorNumber;
   ApIdtBase                   = ALIGN_VALUE (BackupBufferAddr + ApResetVectorSizeBelow1Mb, 8);
-  CpuMpData                   = (CPU_MP_DATA *)(ApIdtBase + VolatileRegisters.Idtr.Limit + 1);
+  CpuMpData                   = (CPU_MP_DATA *)(ApIdtBase + ApIdtLength);
   CpuMpData->Buffer           = Buffer;
   CpuMpData->CpuApStackSize   = ApStackSize;
   CpuMpData->BackupBuffer     = BackupBufferAddr;
@@ -1959,9 +1961,9 @@ MpInitLibInitialize (
 
   //
   // Duplicate BSP's IDT to APs.
-  // All APs share one separate IDT. So AP can get the address of CpuMpData by using IDTR.BASE + IDTR.LIMIT + 1
+  // All APs share one separate IDT.
   //
-  CopyMem ((VOID *)ApIdtBase, (VOID *)VolatileRegisters.Idtr.Base, VolatileRegisters.Idtr.Limit + 1);
+  CopyMem ((VOID *)ApIdtBase, (VOID *)VolatileRegisters.Idtr.Base, ApIdtLength);
   VolatileRegisters.Idtr.Base = ApIdtBase;
   //
   // Don't pass BSP's TR to APs to avoid AP init failure.
