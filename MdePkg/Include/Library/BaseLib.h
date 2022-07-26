@@ -5059,34 +5059,36 @@ typedef union {
 ///
 typedef union {
   struct {
-    UINT32    VME        : 1; ///< Virtual-8086 Mode Extensions.
-    UINT32    PVI        : 1; ///< Protected-Mode Virtual Interrupts.
-    UINT32    TSD        : 1; ///< Time Stamp Disable.
-    UINT32    DE         : 1; ///< Debugging Extensions.
-    UINT32    PSE        : 1; ///< Page Size Extensions.
-    UINT32    PAE        : 1; ///< Physical Address Extension.
-    UINT32    MCE        : 1; ///< Machine Check Enable.
-    UINT32    PGE        : 1; ///< Page Global Enable.
-    UINT32    PCE        : 1; ///< Performance Monitoring Counter
-                              ///< Enable.
-    UINT32    OSFXSR     : 1; ///< Operating System Support for
-                              ///< FXSAVE and FXRSTOR instructions
-    UINT32    OSXMMEXCPT : 1; ///< Operating System Support for
-                              ///< Unmasked SIMD Floating Point
-                              ///< Exceptions.
-    UINT32    UMIP       : 1; ///< User-Mode Instruction Prevention.
-    UINT32    LA57       : 1; ///< Linear Address 57bit.
-    UINT32    VMXE       : 1; ///< VMX Enable.
-    UINT32    SMXE       : 1; ///< SMX Enable.
-    UINT32    Reserved_3 : 1; ///< Reserved.
-    UINT32    FSGSBASE   : 1; ///< FSGSBASE Enable.
-    UINT32    PCIDE      : 1; ///< PCID Enable.
-    UINT32    OSXSAVE    : 1; ///< XSAVE and Processor Extended States Enable.
-    UINT32    Reserved_4 : 1; ///< Reserved.
-    UINT32    SMEP       : 1; ///< SMEP Enable.
-    UINT32    SMAP       : 1; ///< SMAP Enable.
-    UINT32    PKE        : 1; ///< Protection-Key Enable.
-    UINT32    Reserved_5 : 9; ///< Reserved.
+    UINT32    VME        : 1;  ///< Virtual-8086 Mode Extensions.
+    UINT32    PVI        : 1;  ///< Protected-Mode Virtual Interrupts.
+    UINT32    TSD        : 1;  ///< Time Stamp Disable.
+    UINT32    DE         : 1;  ///< Debugging Extensions.
+    UINT32    PSE        : 1;  ///< Page Size Extensions.
+    UINT32    PAE        : 1;  ///< Physical Address Extension.
+    UINT32    MCE        : 1;  ///< Machine Check Enable.
+    UINT32    PGE        : 1;  ///< Page Global Enable.
+    UINT32    PCE        : 1;  ///< Performance Monitoring Counter
+                               ///< Enable.
+    UINT32    OSFXSR     : 1;  ///< Operating System Support for
+                               ///< FXSAVE and FXRSTOR instructions
+    UINT32    OSXMMEXCPT : 1;  ///< Operating System Support for
+                               ///< Unmasked SIMD Floating Point
+                               ///< Exceptions.
+    UINT32    UMIP       : 1;  ///< User-Mode Instruction Prevention.
+    UINT32    LA57       : 1;  ///< Linear Address 57bit.
+    UINT32    VMXE       : 1;  ///< VMX Enable.
+    UINT32    SMXE       : 1;  ///< SMX Enable.
+    UINT32    Reserved_3 : 1;  ///< Reserved.
+    UINT32    FSGSBASE   : 1;  ///< FSGSBASE Enable.
+    UINT32    PCIDE      : 1;  ///< PCID Enable.
+    UINT32    OSXSAVE    : 1;  ///< XSAVE and Processor Extended States Enable.
+    UINT32    Reserved_4 : 1;  ///< Reserved.
+    UINT32    SMEP       : 1;  ///< SMEP Enable.
+    UINT32    SMAP       : 1;  ///< SMAP Enable.
+    UINT32    PKE        : 1;  ///< Protection-Key Enable.
+    UINT32    Reserved_5 : 9;  ///< Reserved.
+    UINT32    FRED       : 1;  ///< FRED Enable. Bit[32].
+    UINT32    Reserved_6 : 31; ///< Reserved.
   } Bits;
   UINTN    UintN;
 } IA32_CR4;
