@@ -41,4 +41,20 @@ CpuFlushTlb (
   VOID
   );
 
+#if defined (MDE_CPU_IA32) || defined (MDE_CPU_X64)
+
+/**
+  return if the Fred is enabled
+
+  @retval TRUE    FRED is enabled.
+  @retval FALSE   FRED is not enabled.
+**/
+BOOLEAN
+EFIAPI
+IsFredEnabled (
+  VOID
+  );
+
+#endif
+
 #endif

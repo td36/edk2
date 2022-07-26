@@ -29,6 +29,9 @@
 #  VALID_ARCHITECTURES           = IA32 X64 EBC ARM AARCH64 RISCV64 LOONGARCH64
 #
 
+[Sources.IA32, Sources.X64]
+  X86BaseCpuLib.c
+
 [Sources.IA32]
   Ia32/CpuSleep.c | MSFT
   Ia32/CpuFlushTlb.c | MSFT
@@ -42,7 +45,6 @@
 [Sources.X64]
   X64/CpuFlushTlb.nasm
   X64/CpuSleep.nasm
-
 
 [Sources.EBC]
   Ebc/CpuSleepFlushTlb.c
@@ -69,4 +71,5 @@
 [Packages]
   MdePkg/MdePkg.dec
 
-
+[LibraryClasses]
+  BaseLib
