@@ -194,6 +194,13 @@
   # @Prompt Configure the SEV-ES work area base
   gUefiCpuPkgTokenSpaceGuid.PcdSevEsWorkAreaSize|0x0|UINT32|0x30002006
 
+  ## Indicates if FRED will be enabled.
+  #  If enabled, FRED will be used if hardware support.<BR><BR>
+  #   TRUE  - FRED will be enabled if hardware support.<BR>
+  #   FALSE - FRED will be disabled.<BR>
+  # @Prompt Enable FRED.
+  gUefiCpuPkgTokenSpaceGuid.PcdFredEnable|FALSE|BOOLEAN|0x30002007
+
 [PcdsFixedAtBuild, PcdsPatchableInModule]
   ## This value is the CPU Local APIC base address, which aligns the address on a 4-KByte boundary.
   # @Prompt Configure base address of CPU Local APIC
