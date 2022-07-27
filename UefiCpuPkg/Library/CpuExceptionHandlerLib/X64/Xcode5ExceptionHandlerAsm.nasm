@@ -70,7 +70,6 @@ AsmFredBeginRing0:
 ; Entry of CPL 0 at offset 256
     pop     rax
     push    rcx
-    push    rcx
 
     ;
     ; Stack:
@@ -79,9 +78,7 @@ AsmFredBeginRing0:
     ; +---------------------+
     ; +    Event Data       +
     ; +---------------------+
-    ; +    Event Info       + <-- Error Code in low 2 bytes
-    ; +---------------------+
-    ; +    Old SS           +
+    ; +    Old SS & Vector  +
     ; +---------------------+
     ; +    Old RSP          +
     ; +---------------------+
@@ -90,16 +87,14 @@ AsmFredBeginRing0:
     ; +    CS               +
     ; +---------------------+
     ; +    RIP              +
-    ; +---------------------+ <-- FRED Stack Context prepared by processor
-    ; +    Old RCX          + <-- will replaced with Event Info (contain Error Code)
     ; +---------------------+
+    ; +    Error Code       +
+    ; +---------------------+ <-- FRED Stack Context prepared by processor
     ; +    Old RCX          +
     ; +---------------------+ <-- RSP, 16-byte aligned
-    mov     rcx, qword [rsp + 16 + FRED_STACK_CONTEXT.EventInfo] ; RCX = Event Info
-    mov     qword [rsp + 8], rcx
     xor     rcx, rcx
     mov     ch, 1  ; CL = 1, indicating FRED
-    mov     cl, byte [rsp + 16 + FRED_STACK_CONTEXT.EventInfo + 4] ; CL = vector number, from 4th byte in Event Info
+    mov     cl, byte [rsp + 8 + FRED_STACK_CONTEXT.OldSs + 4] ; CL = vector number, from 4th byte in Old SS
     jmp     HasErrorCode
 ALIGN   8
 
@@ -210,14 +205,6 @@ HasErrorCode:
     push    0             ; clear EXCEPTION_HANDLER_CONTEXT.OldIdtHandler
     push    0             ; clear EXCEPTION_HANDLER_CONTEXT.ExceptionDataFlag
 
-
-    ; FRED pushes 8 QWORDs in stack while IDT pushes 5 QWORDs.
-    ; Push another padding QWORD for FRED so that RSP is 16-byte aligned
-    ; when "push r15" is executed for both cases.
-    test ch, ch
-    jz .StackAligned16
-    push 0
-
     ;
     ; Since here the stack pointer is 16-byte aligned, so
     ; EFI_FX_SAVE_STATE_X64 of EFI_SYSTEM_CONTEXT_x64
@@ -246,9 +233,7 @@ HasErrorCode:
     ; +   0 (OldIdtHandler) +
     ; +---------------------+
     ; +0 (ExceptionDataFlag)+
-    ; +---------------------+ <-- RSP, 16-byte aligned, IDT
-    ; +  padding for FRED   +
-    ; +---------------------+ <-- RSP, 16-byte aligned, FRED
+    ; +---------------------+ <-- RSP, 16-byte aligned
 
 ;; UINT64  Rdi, Rsi, Rbp, Rsp, Rbx, Rdx, Rcx, Rax;
 ;; UINT64  R8, R9, R10, R11, R12, R13, R14, R15;
