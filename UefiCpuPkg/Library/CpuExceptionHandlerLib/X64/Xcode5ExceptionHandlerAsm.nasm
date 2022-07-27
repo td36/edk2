@@ -274,13 +274,13 @@ HasErrorCode:
     push    rax                      ; for ss
     movzx   rax, word [rbp + 32]
     push    rax                      ; for cs
-    mov     rax, ds
+    mov     rax, 0 ;mov     rax, ds
     push    rax
-    mov     rax, es
+    mov     rax, 0 ;mov     rax, es
     push    rax
-    mov     rax, fs
+    mov     rax, 0 ;mov     rax, fs
     push    rax
-    mov     rax, gs
+    mov     rax, 0 ;mov     rax, gs
     push    rax
 
     mov     [rbp + 8], rcx               ; save vector number
@@ -303,17 +303,17 @@ SkipSidt:
     xor     rax, rax
     push    rax
     push    rax
-    sgdt    [rsp]
-    mov     bx, word [rsp]
-    mov     rax, qword [rsp + 2]
-    mov     qword [rsp], rax
-    mov     word [rsp + 8], bx
+    ; sgdt    [rsp]
+    ; mov     bx, word [rsp]
+    ; mov     rax, qword [rsp + 2]
+    ; mov     qword [rsp], rax
+    ; mov     word [rsp + 8], bx
 
 ;; UINT64  Ldtr, Tr;
     xor     rax, rax
-    str     ax
+    ; str     ax
     push    rax
-    sldt    ax
+    ; sldt    ax
     push    rax
 
 ;; UINT64  RFlags;
@@ -480,9 +480,9 @@ CetDone:
     ; mov     fs, rax ; not for fs
     ; (X64 will not use fs and gs, so we do not restore it)
     pop     rax
-    mov     es, rax
+    ;mov     es, rax
     pop     rax
-    mov     ds, rax
+    ;mov     ds, rax
     pop     qword [rbp + 32]  ; for cs
     pop     qword [rbp + 56]  ; for ss
 

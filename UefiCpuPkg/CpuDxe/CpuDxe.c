@@ -1322,7 +1322,7 @@ InitializeCpu (
   //
   // Init GDT for DXE
   //
-  InitGlobalDescriptorTable ();
+  //InitGlobalDescriptorTable ();
 
   if (IsFredEnabled ()) {
     InitFredExceptionHandler ();
