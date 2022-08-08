@@ -6,7 +6,7 @@
   If a register returned is a single 32-bit value, then a data structure is
   not provided for that register.
 
-  Copyright (c) 2015 - 2021, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2015 - 2022, Intel Corporation. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
   @par Specification Reference:
@@ -1029,7 +1029,9 @@ typedef union {
     /// interrupts disabled.
     ///
     UINT32    InterruptAsBreak    : 1;
-    UINT32    Reserved            : 30;
+    UINT32    Reserved2           : 1;
+    UINT32    MonitorLess         : 1;
+    UINT32    Reserved            : 28;
   } Bits;
   ///
   /// All bit fields as a 32-bit value
