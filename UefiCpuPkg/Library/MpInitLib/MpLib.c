@@ -247,7 +247,21 @@ SaveVolatileRegisters (
   }
 
   AsmReadGdtr (&VolatileRegisters->Gdtr);
-  AsmReadIdtr (&VolatileRegisters->Idtr);
+  if (!IsFredEnabled ()) {
+    AsmReadIdtr (&VolatileRegisters->Idtr);
+  } else {
+    //
+    // If IDT is not supported, set the idt.limit as MAX_UINT16
+    // So, IDT legth will be limit+1, which is zero.
+    //
+    VolatileRegisters->Idtr.Limit  = MAX_UINT16;
+    VolatileRegisters->FredConfig  = (UINTN)AsmReadMsr64 (IA32_FRED_CONFIG);
+    VolatileRegisters->FredStkLvls = (UINTN)AsmReadMsr64 (IA32_FRED_STKLVLS);
+    VolatileRegisters->FredRsp1    = (UINTN)AsmReadMsr64 (IA32_FRED_RSP1);
+    VolatileRegisters->FredRsp2    = (UINTN)AsmReadMsr64 (IA32_FRED_RSP2);
+    VolatileRegisters->FredRsp3    = (UINTN)AsmReadMsr64 (IA32_FRED_RSP3);
+  }
+
   VolatileRegisters->Tr = AsmReadTr ();
 }
 
@@ -288,7 +302,16 @@ RestoreVolatileRegisters (
   }
 
   AsmWriteGdtr (&VolatileRegisters->Gdtr);
-  AsmWriteIdtr (&VolatileRegisters->Idtr);
+  if (!IsFredEnabled ()) {
+    AsmWriteIdtr (&VolatileRegisters->Idtr);
+  } else {
+    AsmWriteMsr64 (IA32_FRED_CONFIG, VolatileRegisters->FredConfig);
+    AsmWriteMsr64 (IA32_FRED_STKLVLS, VolatileRegisters->FredStkLvls);
+    AsmWriteMsr64 (IA32_FRED_RSP1, VolatileRegisters->FredRsp1);
+    AsmWriteMsr64 (IA32_FRED_RSP2, VolatileRegisters->FredRsp2);
+    AsmWriteMsr64 (IA32_FRED_RSP3, VolatileRegisters->FredRsp3);
+  }
+
   if ((VolatileRegisters->Tr != 0) &&
       (VolatileRegisters->Tr < VolatileRegisters->Gdtr.Limit))
   {

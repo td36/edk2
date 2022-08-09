@@ -56,6 +56,16 @@
 #define CPU_SWITCH_STATE_LOADED  2
 
 //
+// FRED related MSR address
+//
+#define IA32_FRED_CONFIG   0x1D4
+#define IA32_FRED_RSP0     0x1CC
+#define IA32_FRED_RSP1     0x1CD
+#define IA32_FRED_RSP2     0x1CE
+#define IA32_FRED_RSP3     0x1CF
+#define IA32_FRED_STKLVLS  0x1D0
+
+//
 // Default maximum number of entries to store the microcode patches information
 //
 #define DEFAULT_MAX_MICROCODE_PATCH_NUM  8
@@ -113,6 +123,11 @@ typedef struct {
   UINTN              Dr7;
   IA32_DESCRIPTOR    Gdtr;
   IA32_DESCRIPTOR    Idtr;
+  UINTN              FredConfig;
+  UINTN              FredStkLvls;
+  UINTN              FredRsp1;
+  UINTN              FredRsp2;
+  UINTN              FredRsp3;
   UINT16             Tr;
 } CPU_VOLATILE_REGISTERS;
 
