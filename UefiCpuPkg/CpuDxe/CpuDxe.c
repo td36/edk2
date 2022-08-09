@@ -21,7 +21,8 @@ BOOLEAN     mIsFlushingGCD;
 BOOLEAN     mIsAllocatingPageTable = FALSE;
 UINT64      mValidMtrrAddressMask;
 UINT64      mValidMtrrBitsMask;
-UINT64      mTimerPeriod = 0;
+UINT64      mTimerPeriod     = 0;
+UINT32      mCpuTargetCState = 0;
 
 //
 // A new writeble pagetable for non-smm.
@@ -1000,12 +1001,30 @@ InitFredExceptionHandler (
 **/
 VOID
 EFIAPI
-IdleLoopEventCallback (
+IdleLoopHlt (
   IN EFI_EVENT  Event,
   IN VOID       *Context
   )
 {
   CpuSleep ();
+}
+
+/**
+  Callback function that puts BSP in MWAIT state for idle events.
+
+  @param  Event                 Event whose notification function is being invoked.
+  @param  Context               The pointer to the notification function's context,
+                                which is implementation-dependent.
+
+**/
+VOID
+EFIAPI
+IdleLoopMwait (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  AsmMwait (mCpuTargetCState, BIT0 | BIT2);
 }
 
 /**
@@ -1257,6 +1276,10 @@ InitializeCpu (
   EFI_PHYSICAL_ADDRESS             BaseAddress;
   EFI_PHYSICAL_ADDRESS             Limit;
   UINTN                            Index;
+  EFI_EVENT_NOTIFY                 IdleCallback;
+  UINT32                           MaxCpuidLeaf;
+  CPUID_VERSION_INFO_ECX           VersionInfoEcx;
+  CPUID_MONITOR_MWAIT_ECX          MonitorMwaitEcx;
 
   //
   // Get the rough system memory range.
@@ -1334,10 +1357,23 @@ InitializeCpu (
   //
   // Setup a callback for idle events
   //
+  IdleCallback = IdleLoopHlt;
+  AsmCpuid (CPUID_SIGNATURE, &MaxCpuidLeaf, NULL, NULL, NULL);
+  if (MaxCpuidLeaf >= CPUID_VERSION_INFO) {
+    AsmCpuid (CPUID_VERSION_INFO, NULL, NULL, &VersionInfoEcx.Uint32, NULL);
+    if ((VersionInfoEcx.Bits.MONITOR == 1) && (MaxCpuidLeaf >= CPUID_MONITOR_MWAIT)) {
+      AsmCpuid (CPUID_MONITOR_MWAIT, NULL, NULL, &MonitorMwaitEcx.Uint32, NULL);
+      if ((MonitorMwaitEcx.Bits.ExtensionsSupported == 1) && (MonitorMwaitEcx.Bits.MonitorLess == 1)) {
+        IdleCallback     = IdleLoopMwait;
+        mCpuTargetCState = PcdGet8 (PcdCpuApTargetCstate) << 4;
+      }
+    }
+  }
+
   Status = gBS->CreateEventEx (
                   EVT_NOTIFY_SIGNAL,
                   TPL_NOTIFY,
-                  IdleLoopEventCallback,
+                  IdleCallback,
                   NULL,
                   &gIdleLoopEventGuid,
                   &IdleLoopEvent

@@ -1,7 +1,7 @@
 ## @file
 #  CPU driver installs CPU Architecture Protocol and CPU MP protocol.
 #
-#  Copyright (c) 2008 - 2019, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2008 - 2022, Intel Corporation. All rights reserved.<BR>
 #  Copyright (c) 2017, AMD Incorporated. All rights reserved.<BR>
 #
 #  SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -82,6 +82,7 @@
   gUefiCpuPkgTokenSpaceGuid.PcdCpuStackSwitchExceptionList              ## CONSUMES
   gUefiCpuPkgTokenSpaceGuid.PcdCpuKnownGoodStackSize                    ## CONSUMES
   gEfiMdeModulePkgTokenSpaceGuid.PcdTdxSharedBitMask                    ## CONSUMES
+  gUefiCpuPkgTokenSpaceGuid.PcdCpuApTargetCstate                        ## CONSUMES
 
 [Depex]
   TRUE
