@@ -748,6 +748,185 @@ RecordAllocatePages (
 }
 
 /**
+  Verify function PageTableRemapWritable
+
+  @param[in, out] PageTable     The pointer to the page table to update, or pointer to NULL if a new page table is to be created.
+  @param[in]      PagingMode    The paging mode.
+  @param[in]      MaxAddress    Max Address.
+  @param[in]      MapEntrys     Record every memory ranges that is used as input
+  @param[in]      PagesRecord   Used to record memory usage for page table.
+  @param[in]      InitMap       Pointer to an array that describes init map entries.
+  @param[in]      InitMapCount  Pointer to a UINTN that hold the number of init map entries.
+
+  @retval  UNIT_TEST_PASSED        The test is successful.
+**/
+UNIT_TEST_STATUS
+VerifyRemapWritable (
+  IN OUT UINTN                  *PageTable,
+  IN     PAGING_MODE            PagingMode,
+  IN     UINT64                 MaxAddress,
+  IN     MAP_ENTRYS             *MapEntrys,
+  IN     ALLOCATE_PAGE_RECORDS  *PagesRecord,
+  IN     IA32_MAP_ENTRY         *InitMap,
+  IN     UINTN                  InitMapCount
+  )
+{
+  UINTN             MapsIndex;
+  UINT64            LinearAddressBottom;
+  UINT64            LinearAddressLength;
+  RETURN_STATUS     Status;
+  UINTN             PageTableBufferSize;
+  VOID              *Buffer;
+  IA32_MAP_ENTRY    *Map;
+  UINTN             MapCount;
+  IA32_MAP_ENTRY    *NewMap;
+  UINTN             NewMapCount;
+  UINTN             Index;
+  UNIT_TEST_STATUS  TestStatus;
+  UINTN             NewPageTable;
+
+  UINTN   KeyPointCount;
+  UINTN   NewKeyPointCount;
+  UINT64  *KeyPointBuffer;
+  UINTN   Level;
+  UINT64  Value;
+
+  MapCount = 0;
+  Status   = PageTableParse (*PageTable, PagingMode, NULL, &MapCount);
+  if (MapCount != 0) {
+    UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+
+    //
+    // Allocate memory for Maps
+    // Note the memory is only used in this one Single MapEntry Test
+    //
+    Map = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+    ASSERT (Map != NULL);
+    Status = PageTableParse (*PageTable, PagingMode, Map, &MapCount);
+  }
+
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapsIndex = MapEntrys->Count;
+  GenerateSingleRandomMapEntry (MaxAddress, MapEntrys);
+  LinearAddressBottom = MapEntrys->Maps[MapsIndex].LinearAddress;
+  LinearAddressLength = MapEntrys->Maps[MapsIndex].Length;
+  if (LinearAddressLength == 0) {
+    LinearAddressLength = 1;
+  }
+
+  MapEntrys->Count   -= 1;
+  NewPageTable        = *PageTable;
+  PageTableBufferSize = 0;
+  Status              = PageTableRemapWritable (
+                          &NewPageTable,
+                          (UINT8)(PagingMode >> 8),
+                          NULL,
+                          &PageTableBufferSize,
+                          LinearAddressBottom,
+                          LinearAddressLength
+                          );
+  if (PageTableBufferSize != 0) {
+    UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+
+    //
+    // Allocate memory for Page table
+    // Note the memory is used in one complete Random test.
+    //
+    Buffer = PagesRecord->AllocatePagesForPageTable (PagesRecord, EFI_SIZE_TO_PAGES (PageTableBufferSize));
+    UT_ASSERT_NOT_EQUAL (Buffer, NULL);
+    Status = PageTableRemapWritable (
+               &NewPageTable,
+               (UINT8)(PagingMode >> 8),
+               Buffer,
+               &PageTableBufferSize,
+               LinearAddressBottom,
+               LinearAddressLength
+               );
+  }
+
+  if (Status != RETURN_SUCCESS ) {
+    UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  }
+
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  TestStatus = IsPageTableValid (NewPageTable, PagingMode);
+  if (TestStatus != UNIT_TEST_PASSED) {
+    return TestStatus;
+  }
+
+  NewMapCount = 0;
+  Status      = PageTableParse (NewPageTable, PagingMode, NULL, &NewMapCount);
+  if (NewMapCount != 0) {
+    UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+
+    //
+    // Allocate memory for Maps
+    // Note the memory is only used in this one Single MapEntry Test
+    //
+    NewMap = AllocatePages (EFI_SIZE_TO_PAGES (NewMapCount * sizeof (IA32_MAP_ENTRY)));
+    ASSERT (NewMap != NULL);
+    Status = PageTableParse (NewPageTable, PagingMode, NewMap, &NewMapCount);
+  }
+
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  for (Index = 0; Index < NewMapCount; Index++) {
+    if ((LinearAddressBottom < NewMap[Index].LinearAddress +NewMap[Index].Length) &&
+        (LinearAddressBottom + LinearAddressLength > NewMap[Index].LinearAddress))
+    {
+      UT_ASSERT_EQUAL (NewMap[Index].Attribute.Bits.ReadWrite, 1);
+    }
+  }
+
+  for (Index = 0; Index < MapEntrys->Count; Index++) {
+    MapEntrys->Maps[Index].Mask.Bits.ReadWrite = 0;
+  }
+
+  for (Index = 0; Index < InitMapCount; Index++) {
+    InitMap[Index].Attribute.Bits.ReadWrite = 0;
+  }
+
+  for (Index = 0; Index < NewMapCount; Index++) {
+    NewMap[Index].Attribute.Bits.ReadWrite = 0;
+  }
+
+  //
+  // Allocate memory to record all key point
+  // Note the memory is only used in this one Single MapEntry Test
+  //
+  KeyPointCount = 0;
+  GetKeyPointList (MapEntrys, NewMap, NewMapCount, NULL, &KeyPointCount);
+  KeyPointBuffer = AllocatePages (EFI_SIZE_TO_PAGES (KeyPointCount * sizeof (UINT64)));
+  ASSERT (KeyPointBuffer != NULL);
+  NewKeyPointCount = 0;
+  GetKeyPointList (MapEntrys, NewMap, NewMapCount, KeyPointBuffer, &NewKeyPointCount);
+
+  //
+  // Compare all key point's attribute
+  //
+  for (Index = 0; Index < NewKeyPointCount; Index++) {
+    if (!CompareEntrysforOnePoint (KeyPointBuffer[Index], MapEntrys, NewMap, NewMapCount, InitMap, InitMapCount)) {
+      DEBUG ((DEBUG_INFO, "Error happens at below key point\n"));
+      DEBUG ((DEBUG_INFO, "Index = %d KeyPointBuffer[Index] = 0x%lx\n", Index, KeyPointBuffer[Index]));
+      Value = GetEntryFromPageTable (*PageTable, PagingMode, KeyPointBuffer[Index], &Level);
+      DEBUG ((DEBUG_INFO, "From Page table, this key point is in level %d entry, with entry value is 0x%lx\n", Level, Value));
+      UT_ASSERT_TRUE (FALSE);
+    }
+  }
+
+  if (MapCount != 0) {
+    FreePages (Map, EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  }
+
+  if (NewMapCount != 0) {
+    FreePages (NewMap, EFI_SIZE_TO_PAGES (NewMapCount * sizeof (IA32_MAP_ENTRY)));
+  }
+
+  return UNIT_TEST_PASSED;
+}
+
+/**
   The function is a whole Random test, it will call SingleMapEntryTest for ExpctedEntryNumber times
 
   @param[in]  ExpctedEntryNumber   The count of random entry
@@ -771,9 +950,11 @@ MultipleMapEntryTest (
   IA32_MAP_ENTRY         *InitMap;
   UINTN                  InitMapCount;
 
-  MaxAddress = GetMaxAddress (PagingMode);
-  PageTable  = 0;
-  MapEntrys  = AllocatePages (EFI_SIZE_TO_PAGES (1000*sizeof (MAP_ENTRY) + sizeof (MAP_ENTRYS)));
+  InitMap      = NULL;
+  InitMapCount = 0;
+  MaxAddress   = GetMaxAddress (PagingMode);
+  PageTable    = 0;
+  MapEntrys    = AllocatePages (EFI_SIZE_TO_PAGES (1000*sizeof (MAP_ENTRY) + sizeof (MAP_ENTRYS)));
   ASSERT (MapEntrys != NULL);
   MapEntrys->Count     = 0;
   MapEntrys->InitCount = 0;
@@ -840,10 +1021,25 @@ MultipleMapEntryTest (
         return TestStatus;
       }
     }
+  }
 
-    if (InitMapCount != 0) {
-      FreePages (InitMap, EFI_SIZE_TO_PAGES (InitMapCount*sizeof (IA32_MAP_ENTRY)));
+  if ((mRandomOption & TEST_REMAP_WRITEABLE) != 0) {
+    TestStatus = VerifyRemapWritable (
+                   &PageTable,
+                   PagingMode,
+                   MaxAddress,
+                   MapEntrys,
+                   PagesRecord,
+                   InitMap,
+                   InitMapCount
+                   );
+    if (TestStatus != UNIT_TEST_PASSED) {
+      return TestStatus;
     }
+  }
+
+  if (InitMapCount != 0) {
+    FreePages (InitMap, EFI_SIZE_TO_PAGES (InitMapCount * sizeof (IA32_MAP_ENTRY)));
   }
 
   FreePages (

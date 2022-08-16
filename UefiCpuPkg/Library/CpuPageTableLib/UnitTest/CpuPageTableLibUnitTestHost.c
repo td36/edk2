@@ -9,10 +9,10 @@
 #include "CpuPageTableLibUnitTest.h"
 
 // ----------------------------------------------------------------------- PageMode--TestCount-TestRangeCount---RandomOptions
-static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging4Level    = { Paging4Level, 100, 20, ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY };
-static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging4Level1GB = { Paging4Level1GB, 100, 20, ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY };
-static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging5Level    = { Paging5Level, 100, 20, ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY };
-static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging5Level1GB = { Paging5Level1GB, 100, 20, ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY };
+static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging4Level    = { Paging4Level, 100, 20, MANUAL_CHANGE_PAGE_TABLE|ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY|TEST_REMAP_WRITEABLE };
+static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging4Level1GB = { Paging4Level1GB, 100, 20, MANUAL_CHANGE_PAGE_TABLE|ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY|TEST_REMAP_WRITEABLE };
+static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging5Level    = { Paging5Level, 100, 20, MANUAL_CHANGE_PAGE_TABLE|ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY |TEST_REMAP_WRITEABLE };
+static CPU_PAGE_TABLE_LIB_RANDOM_TEST_CONTEXT  mTestContextPaging5Level1GB = { Paging5Level1GB, 100, 20, MANUAL_CHANGE_PAGE_TABLE|ONLY_ONE_ONE_MAPPING|USE_RANDOM_ARRAY |TEST_REMAP_WRITEABLE };
 
 /**
   Check if the input parameters are not supported.
@@ -293,7 +293,7 @@ TestCaseManualChangeReadWrite (
   Status   = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
   IsPageTableValid (PageTable, PagingMode);
-  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount));
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
   Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
   UT_ASSERT_EQUAL (MapCount, 1);
@@ -310,7 +310,7 @@ TestCaseManualChangeReadWrite (
   MapCount            = 0;
   Status              = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
-  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount));
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
   Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
 
   UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
@@ -337,7 +337,7 @@ TestCaseManualChangeReadWrite (
   MapCount = 0;
   Status   = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
-  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount));
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
   Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
   //
   // There should be 1 range [0, 2G] with ReadWrite = 0
@@ -366,7 +366,7 @@ TestCaseManualChangeReadWrite (
   MapCount = 0;
   Status   = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
-  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount));
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
   Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
   //
   // There should be 2 range [0, 2M] with ReadWrite = 1 and [2M, 2G] with ReadWrite = 0
@@ -445,7 +445,7 @@ TestCaseManualSizeNotMatch (
   Status   = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
   IsPageTableValid (PageTable, PagingMode);
-  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount));
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
   Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
   UT_ASSERT_EQUAL (MapCount, 1);
@@ -467,7 +467,7 @@ TestCaseManualSizeNotMatch (
   MapCount            = 0;
   Status              = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
   UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
-  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount));
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
   Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
 
   UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
@@ -570,6 +570,566 @@ TestCaseManualNotMergeEntry (
   //
   UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
 
+  return UNIT_TEST_PASSED;
+}
+
+/**
+  Test case for PageTableRemapWritable
+
+  @param[in]  Context    [Optional] An optional parameter that enables:
+                         1) test-case reuse with varied parameters and
+                         2) test-case re-entry for Target tests that need a
+                         reboot.  This parameter is a VOID* and it is the
+                         responsibility of the test author to ensure that the
+                         contents are well understood by all test cases that may
+                         consume it.
+
+  @retval  UNIT_TEST_PASSED             The Unit test has completed and the test
+                                        case was successful.
+  @retval  UNIT_TEST_ERROR_TEST_FAILED  A test case assertion has failed.
+**/
+UNIT_TEST_STATUS
+EFIAPI
+TestCaseForPageTableRemapWritable (
+  IN UNIT_TEST_CONTEXT  Context
+  )
+{
+  UINTN               PageTable;
+  UINTN               NewPageTable;
+  PAGING_MODE         PagingMode;
+  VOID                *Buffer;
+  UINTN               PageTableBufferSize;
+  IA32_MAP_ATTRIBUTE  MapAttribute;
+  IA32_MAP_ATTRIBUTE  MapMask;
+  RETURN_STATUS       Status;
+  UNIT_TEST_STATUS    TestStatus;
+  IA32_MAP_ENTRY      *Map;
+  UINTN               MapCount;
+
+  PagingMode                  = Paging4Level1GB;
+  PageTableBufferSize         = 0;
+  PageTable                   = 0;
+  Buffer                      = NULL;
+  MapAttribute.Uint64         = 0;
+  MapMask.Uint64              = MAX_UINT64;
+  MapAttribute.Bits.Present   = 1;
+  MapAttribute.Bits.ReadWrite = 0;
+  MapMask.Bits.Present        = 1;
+
+  //
+  // Create Page table to cover [0,4M] with ReadWrite bit as 0, and [4M, 1G] is not present
+  //
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2MB * 2, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2MB * 2, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  TestStatus = IsPageTableValid (PageTable, PagingMode);
+  if (TestStatus != UNIT_TEST_PASSED) {
+    return TestStatus;
+  }
+
+  //
+  // Remap pagetable [0,1G] with ReadWrite as 1
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, 0, (UINT64)SIZE_1GB);
+
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableRemapWritable (&NewPageTable, 4, Buffer, &PageTableBufferSize, 0, (UINT64)SIZE_1GB);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)NewPageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)NewPageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 1);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_2MB * 2);
+  MapAttribute.Bits.ReadWrite = 1;
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, MapAttribute.Uint64);
+
+  //
+  // Remap pagetable [512G,513G] with ReadWrite as 1, directly return success
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+  Status              = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_1GB *512, (UINT64)SIZE_1GB);
+
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (PageTableBufferSize, 0);
+  return UNIT_TEST_PASSED;
+}
+
+/**
+  Test case for minimal size usage of PageTableRemapWritable
+
+  @param[in]  Context    [Optional] An optional parameter that enables:
+                         1) test-case reuse with varied parameters and
+                         2) test-case re-entry for Target tests that need a
+                         reboot.  This parameter is a VOID* and it is the
+                         responsibility of the test author to ensure that the
+                         contents are well understood by all test cases that may
+                         consume it.
+
+  @retval  UNIT_TEST_PASSED             The Unit test has completed and the test
+                                        case was successful.
+  @retval  UNIT_TEST_ERROR_TEST_FAILED  A test case assertion has failed.
+**/
+UNIT_TEST_STATUS
+EFIAPI
+TestCaseForSizeUsageOfPageTableRemapWritable (
+  IN UNIT_TEST_CONTEXT  Context
+  )
+{
+  UINTN               PageTable;
+  UINTN               NewPageTable;
+  PAGING_MODE         PagingMode;
+  VOID                *Buffer;
+  UINTN               PageTableBufferSize;
+  IA32_MAP_ATTRIBUTE  MapAttribute;
+  IA32_MAP_ATTRIBUTE  MapMask;
+  RETURN_STATUS       Status;
+  IA32_MAP_ENTRY      *Map;
+  UINTN               MapCount;
+  IA32_PML4E          *Pml4;
+  IA32_PDPTE          *Pdpte;
+  IA32_PDE_2M         *Pde2M;
+
+  PagingMode                  = Paging4Level1GB;
+  PageTableBufferSize         = 0;
+  PageTable                   = 0;
+  Buffer                      = NULL;
+  MapAttribute.Uint64         = (UINT64)SIZE_1GB - SIZE_2MB;
+  MapMask.Uint64              = MAX_UINT64;
+  MapAttribute.Bits.Present   = 1;
+  MapAttribute.Bits.ReadWrite = 0;
+  MapMask.Bits.Present        = 1;
+
+  //
+  // Create Page table to cover [1G - 2M,2G] with ReadWrite bit as 0
+  //
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)SIZE_1GB - SIZE_2MB, (UINT64)SIZE_1GB + SIZE_2MB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)SIZE_1GB - SIZE_2MB, (UINT64)SIZE_1GB + SIZE_2MB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Manual change [1G - 2M,1G] as not present
+  //
+  // Page table layout is as below:
+  //
+  // [IA32_CR3]
+  //     |
+  //     |
+  //     V
+  //  [IA32_PML4E] --> [IA32_PDPTE]
+  //                     ...
+  //                   [IA32_PDPTE] --> [IA32_PDE_2M]
+  //                                        ...
+  //                                    [IA32_PDE_2M]
+  //
+  Pml4  = (IA32_PML4E *)PageTable;
+  Pdpte = (IA32_PDPTE *)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (Pml4);
+  Pde2M = (IA32_PDE_2M *)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (Pdpte);
+  UT_ASSERT_EQUAL ((UINT64)SIZE_1GB - SIZE_2MB, IA32_PLEB_PAGE_TABLE_BASE_ADDRESS (&Pde2M[511]));
+  UT_ASSERT_EQUAL (1, Pde2M[511].Bits.Present);
+  Pde2M[511].Bits.Present = 0;
+
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)PageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)PageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 1);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, SIZE_1GB);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_1GB);
+
+  //
+  // Remap pagetable [0 , 2G] with ReadWrite as 1
+  // However, since [0 , 1G] is not present, only [1G, 2G] is mapped.
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2GB);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  UT_ASSERT_EQUAL (PageTableBufferSize, EFI_PAGES_TO_SIZE (2));
+
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableRemapWritable (&NewPageTable, 4, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2GB);
+  UT_ASSERT_NOT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)NewPageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)NewPageTable, PagingMode, Map, &MapCount);
+
+  MapAttribute.Bits.ReadWrite            = 1;
+  MapAttribute.Bits.PageTableBaseAddress = ((UINT64)SIZE_1GB) >> 12;
+  UT_ASSERT_EQUAL (MapCount, 1);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, SIZE_1GB);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_1GB);
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, MapAttribute.Uint64);
+
+  PagingMode                  = Paging4Level1GB;
+  PageTableBufferSize         = 0;
+  PageTable                   = 0;
+  Buffer                      = NULL;
+  MapAttribute.Uint64         = 0;
+  MapMask.Uint64              = MAX_UINT64;
+  MapAttribute.Bits.Present   = 1;
+  MapAttribute.Bits.ReadWrite = 0;
+  MapMask.Bits.Present        = 1;
+  //
+  // Create Page table to cover [0,10M] with ReadWrite bit as 0, and [10M, 1G] is not present
+  //
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2MB * 5, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2MB * 5, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Manual change [2M , 4M] as not present
+  //
+  // Page table layout is as below:
+  //
+  // [IA32_CR3]
+  //     |
+  //     |
+  //     V
+  //  [IA32_PML4E] --> [IA32_PDPTE]
+  //                     ...
+  //                   [IA32_PDPTE] --> [IA32_PDE_2M]
+  //                                        ...
+  //                                    [IA32_PDE_2M]
+  //
+  Pml4  = (IA32_PML4E *)PageTable;
+  Pdpte = (IA32_PDPTE *)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (Pml4);
+  Pde2M = (IA32_PDE_2M *)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (Pdpte);
+  UT_ASSERT_EQUAL (SIZE_2MB, IA32_PLEB_PAGE_TABLE_BASE_ADDRESS (&Pde2M[1]));
+  UT_ASSERT_EQUAL (1, Pde2M[1].Bits.Present);
+  Pde2M[1].Bits.Present = 0;
+
+  //
+  // Check if [2M , 4M] is not present
+  //
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)PageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)PageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 2);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_2MB);
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, MapAttribute.Uint64);
+
+  UT_ASSERT_EQUAL (Map[1].LinearAddress, (UINT64)SIZE_2MB*2);
+  UT_ASSERT_EQUAL (Map[1].Length, (UINT64)SIZE_2MB*3);
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[1].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+
+  //
+  // Remap pagetable [2M , 4M] with ReadWrite as 1
+  // However, since [2M , 4M] is not present, BufferSize should be zero, and returned input page table itself
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB, (UINT64)SIZE_2MB);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  UT_ASSERT_EQUAL (PageTableBufferSize, 0);
+
+  //
+  // Remap pagetable [10M , 2G] with ReadWrite as 1
+  // However, since [10M , 2G] is not present, BufferSize should be zero, and returned input page table itself
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB*5, (UINT64)SIZE_2GB - SIZE_2MB*5);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  UT_ASSERT_EQUAL (PageTableBufferSize, 0);
+
+  //
+  // Remap pagetable [8M , 2G] with ReadWrite as 1
+  // However, since [8M , 10M] is present, need 3 pages, return buffer too small, and pagetable unchanged
+  // Page table layout is as below:
+  //
+  //  [IA32_CR3*]
+  //     |
+  //     |
+  //     V
+  //  [IA32_PML4E]
+  //  ...
+  //  [IA32_PML4E*] --> [IA32_PDPTE]
+  //                     ...
+  //                   [IA32_PDPTE*] --> [IA32_PDE_2M]
+  //                                        ...
+  //                                    [IA32_PDE_2M]
+  // The one marked with * will be created a new one. so need 4 pages
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB*4, (UINT64)SIZE_2GB - SIZE_2MB*4);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  UT_ASSERT_EQUAL (PageTableBufferSize, EFI_PAGES_TO_SIZE (3));
+
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableRemapWritable (&NewPageTable, 4, Buffer, &PageTableBufferSize, (UINT64)SIZE_2MB*4, (UINT64)SIZE_2GB - SIZE_2MB*4);
+  UT_ASSERT_NOT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)NewPageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)NewPageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 3);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_2MB);
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, MapAttribute.Uint64);
+
+  UT_ASSERT_EQUAL (Map[1].LinearAddress, (UINT64)SIZE_2MB*2);
+  UT_ASSERT_EQUAL (Map[1].Length, (UINT64)SIZE_2MB*2);
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[1].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+
+  UT_ASSERT_EQUAL (Map[2].LinearAddress, (UINT64)SIZE_2MB*4);
+  UT_ASSERT_EQUAL (Map[2].Length, (UINT64)SIZE_2MB);
+  MapAttribute.Bits.ReadWrite = 1;
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[2].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+
+  return UNIT_TEST_PASSED;
+}
+
+/**
+  Test case for minimal size usage of PageTableRemapWritable with 4K page entry
+
+  @param[in]  Context    [Optional] An optional parameter that enables:
+                         1) test-case reuse with varied parameters and
+                         2) test-case re-entry for Target tests that need a
+                         reboot.  This parameter is a VOID* and it is the
+                         responsibility of the test author to ensure that the
+                         contents are well understood by all test cases that may
+                         consume it.
+
+  @retval  UNIT_TEST_PASSED             The Unit test has completed and the test
+                                        case was successful.
+  @retval  UNIT_TEST_ERROR_TEST_FAILED  A test case assertion has failed.
+**/
+UNIT_TEST_STATUS
+EFIAPI
+TestCaseForSizeUsageOfPageTableRemapWritable4K (
+  IN UNIT_TEST_CONTEXT  Context
+  )
+{
+  UINTN               PageTable;
+  UINTN               NewPageTable;
+  PAGING_MODE         PagingMode;
+  VOID                *Buffer;
+  UINTN               PageTableBufferSize;
+  IA32_MAP_ATTRIBUTE  MapAttribute;
+  IA32_MAP_ATTRIBUTE  MapMask;
+  RETURN_STATUS       Status;
+  IA32_MAP_ENTRY      *Map;
+  UINTN               MapCount;
+
+  PagingMode                  = Paging4Level1GB;
+  PageTableBufferSize         = 0;
+  PageTable                   = 0;
+  Buffer                      = NULL;
+  MapAttribute.Uint64         = 0;
+  MapMask.Uint64              = MAX_UINT64;
+  MapAttribute.Bits.Present   = 1;
+  MapAttribute.Bits.ReadWrite = 0;
+  MapMask.Bits.Present        = 1;
+
+  //
+  // Create Page table to cover [0,10M] with ReadWrite bit as 0, and [10M, 1G] is not present
+  //
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2MB * 5, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)0, (UINT64)SIZE_2MB * 5, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Mark  [2M,2M+4K]  not present
+  //
+  MapAttribute.Bits.Present = 0;
+  Status                    = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)SIZE_2MB, (UINT64)SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, (UINT64)SIZE_2MB, (UINT64)SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Check
+  //
+  MapAttribute.Bits.Present = 1;
+  MapCount                  = 0;
+  Status                    = PageTableParse ((UINTN)PageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)PageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 2);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_2MB);
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, MapAttribute.Uint64);
+
+  UT_ASSERT_EQUAL (Map[1].LinearAddress, (UINT64)SIZE_2MB + SIZE_4KB);
+  UT_ASSERT_EQUAL (Map[1].Length, (UINT64)SIZE_2MB*4 - SIZE_4KB);
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[1].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+
+  //
+  // Remap pagetable [2M,2M+4K]  with ReadWrite as 1
+  // However, since [2M,2M+4K]  is not present, BufferSize should be zero, and returned input page table itself
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB, (UINT64)SIZE_4KB);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  UT_ASSERT_EQUAL (PageTableBufferSize, 0);
+
+  //
+  // Remap pagetable [10M , 2G] with ReadWrite as 1
+  // However, since [10M , 2G] is not present, BufferSize should be zero, and returned input page table itself
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB*5, (UINT64)SIZE_2GB - SIZE_2MB*5);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+  UT_ASSERT_EQUAL (PageTableBufferSize, 0);
+
+  //
+  // Remap pagetable [4M-4K , 2G + 4M - 4K] with ReadWrite as 1
+  // However, since [4M-4K , 10M] is present, need 4 pages, return buffer too small, and pagetable unchanged
+  //
+  // Page table layout is as below:
+  //
+  //  [IA32_CR3*]
+  //     |
+  //     |
+  //     V
+  //  [IA32_PML4E]
+  //  ...
+  //  [IA32_PML4E*] --> [IA32_PDPTE]
+  //                     ...
+  //                   [IA32_PDPTE*] --> [IA32_PDE_2M]
+  //                                        ...
+  //                                    [IA32_PDE*]      --> [IA32_PTE_4K]  --> 4K aligned physical address
+  //                                                        ...
+  //                                                        [IA32_PTE_4K]  --> 4K aligned physical address
+  //                                    [IA32_PDE_2M]
+  // The one marked with * will be created a new one. so need 4 pages
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB*2 -SIZE_4KB, (UINT64)SIZE_2GB);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  UT_ASSERT_EQUAL (PageTableBufferSize, EFI_PAGES_TO_SIZE (4));
+
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableRemapWritable (&NewPageTable, 4, Buffer, &PageTableBufferSize, (UINT64)SIZE_2MB*2 -SIZE_4KB, (UINT64)SIZE_2GB);
+  UT_ASSERT_NOT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)NewPageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)NewPageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 3);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_2MB);
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, MapAttribute.Uint64);
+
+  UT_ASSERT_EQUAL (Map[1].LinearAddress, (UINT64)SIZE_2MB+SIZE_4KB);
+  UT_ASSERT_EQUAL (Map[1].Length, (UINT64)SIZE_2MB -SIZE_4KB - SIZE_4KB);
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[1].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+
+  UT_ASSERT_EQUAL (Map[2].LinearAddress, (UINT64)SIZE_2MB*2- SIZE_4KB);
+  UT_ASSERT_EQUAL (Map[2].Length, (UINT64)SIZE_2MB*3 + SIZE_4KB);
+  MapAttribute.Bits.ReadWrite = 1;
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[2].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+  MapAttribute.Bits.ReadWrite = 0;
+
+  //
+  // Remap pagetable [2M-4K , 2M+4K] with ReadWrite as 1
+  // However, since [2M-4K , 2M+] is present, need 3 pages, return buffer too small, and pagetable unchanged
+  //
+  // Page table layout is as below:
+  //
+  // [IA32_CR3*]
+  //     |
+  //     |
+  //     V
+  //  [IA32_PML4E*] --> [IA32_PDPTE]
+  //                     ...
+  //                   [IA32_PDPTE*] --> [IA32_PDE_2M]
+  //                                        ...
+  //                                    [IA32_PDE]      --> [IA32_PTE_4K]  --> 4K aligned physical address
+  //                                                        ...
+  //                                                        [IA32_PTE_4K]  --> 4K aligned physical address
+  //                                    [IA32_PDE_2M]
+  // The one marked with * will be created a new one. so need three pages
+  //
+  PageTableBufferSize = 0;
+  NewPageTable        = PageTable;
+
+  Status = PageTableRemapWritable (&NewPageTable, 4, NULL, &PageTableBufferSize, (UINT64)SIZE_2MB -SIZE_4KB, (UINT64)SIZE_8KB);
+  UT_ASSERT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  UT_ASSERT_EQUAL (PageTableBufferSize, EFI_PAGES_TO_SIZE (3));
+
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableRemapWritable (&NewPageTable, 4, Buffer, &PageTableBufferSize, (UINT64)SIZE_2MB -SIZE_4KB, (UINT64)SIZE_8KB);
+  UT_ASSERT_NOT_EQUAL (NewPageTable, PageTable);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapCount = 0;
+  Status   = PageTableParse ((UINTN)NewPageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount * sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse ((UINTN)NewPageTable, PagingMode, Map, &MapCount);
+
+  UT_ASSERT_EQUAL (MapCount, 2);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, (UINT64)SIZE_2MB);
+  MapAttribute.Bits.ReadWrite = 1;
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[0].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
+  MapAttribute.Bits.ReadWrite = 0;
+
+  UT_ASSERT_EQUAL (Map[1].LinearAddress, (UINT64)SIZE_2MB + SIZE_4KB);
+  UT_ASSERT_EQUAL (Map[1].Length, (UINT64)SIZE_2MB*4 - SIZE_4KB);
+
+  UT_ASSERT_EQUAL (IA32_MAP_ATTRIBUTE_ATTRIBUTES (&Map[1].Attribute), IA32_MAP_ATTRIBUTE_ATTRIBUTES (&MapAttribute));
   return UNIT_TEST_PASSED;
 }
 
@@ -746,7 +1306,9 @@ UefiTestMain (
   AddTestCase (ManualTestCase, "Check if the parent entry has different ReadWrite attribute", "Manual Test Case5", TestCaseManualChangeReadWrite, NULL, NULL, NULL);
   AddTestCase (ManualTestCase, "Check if the parent entry has different Nx attribute", "Manual Test Case6", TestCaseManualChangeNx, NULL, NULL, NULL);
   AddTestCase (ManualTestCase, "Check if the needed size is expected", "Manual Test Case7", TestCaseManualSizeNotMatch, NULL, NULL, NULL);
-
+  AddTestCase (ManualTestCase, "Check PageTableRemapWritable", "Manual Test Case8", TestCaseForPageTableRemapWritable, NULL, NULL, NULL);
+  AddTestCase (ManualTestCase, "Check for minimal size usage of PageTableRemapWritable", "Manual Test Case9", TestCaseForSizeUsageOfPageTableRemapWritable, NULL, NULL, NULL);
+  AddTestCase (ManualTestCase, "Check for minimal size usage of PageTableRemapWritable with 4K page entry", "Manual Test Case9", TestCaseForSizeUsageOfPageTableRemapWritable4K, NULL, NULL, NULL);
   //
   // Populate the Random Test Cases.
   //

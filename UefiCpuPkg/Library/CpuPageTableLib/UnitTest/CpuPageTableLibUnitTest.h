@@ -50,6 +50,12 @@
 //
 #define USE_RANDOM_ARRAY  0x00000004
 
+//
+// Verify PageTableRemapWritable in Random test
+// This option can only be set, if ONLY_ONE_ONE_MAPPING is set.
+//
+#define TEST_REMAP_WRITEABLE  0x00000008
+
 typedef struct {
   PAGING_MODE    PagingMode;
   UINTN          TestCount;
