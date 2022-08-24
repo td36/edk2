@@ -1598,6 +1598,33 @@ typedef union {
   UINT32    Uint32;
 } CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_EDX;
 
+#define CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_2  0x02
+
+/**
+  CPUID Structured Extended Feature Flags Enumeration in EAX for CPUID leaf
+  #CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS sub leaf
+  #CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_2.
+**/
+typedef union {
+  ///
+  /// Individual bit fields
+  ///
+  struct {
+    ///
+    /// [Bit 9:0] Reserved.
+    ///
+    UINT32    Reserved : 10;
+    ///
+    /// [Bit 10] New INIT/SIPI Protocol suport
+    ///
+    UINT32    NewSipi  : 1;
+  } Bits;
+  ///
+  /// All bit fields as a 32-bit value
+  ///
+  UINT32    Uint32;
+} CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_2_EAX;
+
 /**
   CPUID Direct Cache Access Information
 
