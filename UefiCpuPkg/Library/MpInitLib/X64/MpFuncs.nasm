@@ -149,6 +149,7 @@ SkipEnable5LevelPaging:
 
 BITS 64
 NewSipiEntry:
+    mov        ebp, eax                        ; Save BIST information  
     lea        rbx, [NewSipiEntry]
     add        rbx, RendezvousFunnelProcEnd - NewSipiEntry ; rbx points to MP_CPU_EXCHANGE_INFO buffer
     sub        rbx, MP_CPU_EXCHANGE_INFO_OFFSET ; substract it because MP_CPU_EXCHANGE_INFO_FIELD() adds it
