@@ -246,7 +246,6 @@ SaveVolatileRegisters (
     VolatileRegisters->Dr7 = AsmReadDr7 ();
   }
 
-  AsmReadGdtr (&VolatileRegisters->Gdtr);
   if (!IsFredEnabled ()) {
     AsmReadIdtr (&VolatileRegisters->Idtr);
   } else {
@@ -301,7 +300,6 @@ RestoreVolatileRegisters (
     }
   }
 
-  AsmWriteGdtr (&VolatileRegisters->Gdtr);
   if (!IsFredEnabled ()) {
     AsmWriteIdtr (&VolatileRegisters->Idtr);
   } else {
