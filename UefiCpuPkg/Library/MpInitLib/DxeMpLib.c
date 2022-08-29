@@ -427,28 +427,32 @@ MpInitChangeApLoopCallback (
 {
   CPU_MP_DATA  *CpuMpData;
 
-  CpuMpData                  = GetCpuMpData ();
-  CpuMpData->PmCodeSegment   = GetProtectedModeCS ();
-  CpuMpData->Pm16CodeSegment = GetProtectedMode16CS ();
-  CpuMpData->ApLoopMode      = PcdGet8 (PcdCpuApLoopMode);
-  mNumberToFinish            = CpuMpData->CpuCount - 1;
-  WakeUpAP (CpuMpData, TRUE, 0, RelocateApLoop, NULL, TRUE);
-  while (mNumberToFinish > 0) {
-    CpuPause ();
-  }
+  if (IsNewSipiEnabled ()) {
+    SendInitIpiAllExcludingSelf ();
+  } else {
+    CpuMpData                  = GetCpuMpData ();
+    CpuMpData->PmCodeSegment   = GetProtectedModeCS ();
+    CpuMpData->Pm16CodeSegment = GetProtectedMode16CS ();
+    CpuMpData->ApLoopMode      = PcdGet8 (PcdCpuApLoopMode);
+    mNumberToFinish            = CpuMpData->CpuCount - 1;
+    WakeUpAP (CpuMpData, TRUE, 0, RelocateApLoop, NULL, TRUE);
+    while (mNumberToFinish > 0) {
+      CpuPause ();
+    }
 
-  if (CpuMpData->UseSevEsAPMethod && (CpuMpData->WakeupBuffer != (UINTN)-1)) {
-    //
-    // There are APs present. Re-use reserved memory area below 1MB from
-    // WakeupBuffer as the area to be used for transitioning to 16-bit mode
-    // in support of booting of the AP by an OS.
-    //
-    CopyMem (
-      (VOID *)CpuMpData->WakeupBuffer,
-      (VOID *)(CpuMpData->AddressMap.RendezvousFunnelAddress +
-               CpuMpData->AddressMap.SwitchToRealPM16ModeOffset),
-      CpuMpData->AddressMap.SwitchToRealPM16ModeSize
-      );
+    if (CpuMpData->UseSevEsAPMethod && (CpuMpData->WakeupBuffer != (UINTN)-1)) {
+      //
+      // There are APs present. Re-use reserved memory area below 1MB from
+      // WakeupBuffer as the area to be used for transitioning to 16-bit mode
+      // in support of booting of the AP by an OS.
+      //
+      CopyMem (
+        (VOID *)CpuMpData->WakeupBuffer,
+        (VOID *)(CpuMpData->AddressMap.RendezvousFunnelAddress +
+                 CpuMpData->AddressMap.SwitchToRealPM16ModeOffset),
+        CpuMpData->AddressMap.SwitchToRealPM16ModeSize
+        );
+    }
   }
 
   DEBUG ((DEBUG_INFO, "%a() done!\n", __FUNCTION__));

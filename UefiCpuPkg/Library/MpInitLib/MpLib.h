@@ -60,6 +60,36 @@
 //
 #define DEFAULT_MAX_MICROCODE_PATCH_NUM  8
 
+#define MSR_ENTRY_STRUCT  0xCF000107
+
+typedef union {
+  ///
+  /// Individual bit fields
+  ///
+  struct {
+    UINT64    Enabled     : 1;
+    UINT64    Reserved    : 11;
+    UINT64    EntryStruct : 52;
+  } Bits;
+  ///
+  /// All bit fields as a 64-bit value
+  ///
+  UINT64    Uint64;
+} MSR_ENTRY_STRUCT_REGISTER;
+
+typedef struct {
+  UINT64    Features;
+  UINT64    Rip;
+  UINT64    Cr3;
+  UINT64    Cr0;
+  UINT64    Cr4;
+  UINT8     DontCare[SIZE_4KB - 5 * sizeof (UINT64)];   // TODO: How to create a fixed-size structure
+} ENTRY_STRUCT;
+
+STATIC_ASSERT (
+  sizeof (ENTRY_STRUCT) == SIZE_4KB,
+  "ENTRY_STRUCT must be of 4KB size"
+  );
 //
 // Data structure for microcode patch information
 //
@@ -180,6 +210,7 @@ typedef struct {
   UINT8    *RelocateApLoopFuncAddress;
   UINTN    RelocateApLoopFuncSize;
   UINTN    ModeTransitionOffset;
+  UINTN    NewSipiEntryOffset;
   UINTN    SwitchToRealNoNxOffset;
   UINTN    SwitchToRealPM16ModeOffset;
   UINTN    SwitchToRealPM16ModeSize;
@@ -371,6 +402,16 @@ typedef
   IN UINTN                   Pm16CodeSegment,
   IN UINTN                   SevEsAPJumpTable,
   IN UINTN                   WakeupBuffer
+  );
+
+/**
+  The function will check if New SIPI is enabled.
+  @retval TRUE     New SIPI is enabled.
+  @retval FALSE    New SIPI is not enabled.
+**/
+BOOLEAN
+IsNewSipiEnabled (
+  VOID
   );
 
 /**

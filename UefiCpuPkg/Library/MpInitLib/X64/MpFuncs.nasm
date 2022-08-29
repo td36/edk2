@@ -148,7 +148,10 @@ SkipEnable5LevelPaging:
     jmp far    [edi]
 
 BITS 64
-
+NewSipiEntry:
+    lea        rbx, [NewSipiEntry]
+    add        rbx, RendezvousFunnelProcEnd - NewSipiEntry ; rbx points to MP_CPU_EXCHANGE_INFO buffer
+    sub        rbx, MP_CPU_EXCHANGE_INFO_OFFSET ; substract it because MP_CPU_EXCHANGE_INFO_FIELD() adds it
 LongModeStart:
     mov        esi, ebx
 
@@ -456,10 +459,13 @@ ASM_PFX(AsmGetAddressMap):
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.RendezvousFunnelAddress], rax
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.ModeEntryOffset], LongModeStart - RendezvousFunnelProcStart
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.RendezvousFunnelSize], RendezvousFunnelProcEnd - RendezvousFunnelProcStart
+    mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.ModeTransitionOffset], Flat32Start - RendezvousFunnelProcStart
+    mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.NewSipiEntryOffset], NewSipiEntry - RendezvousFunnelProcStart
+
     lea        rax, [AsmRelocateApLoopStart]
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.RelocateApLoopFuncAddress], rax
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.RelocateApLoopFuncSize], AsmRelocateApLoopEnd - AsmRelocateApLoopStart
-    mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.ModeTransitionOffset], Flat32Start - RendezvousFunnelProcStart
+    
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.SwitchToRealNoNxOffset], SwitchToRealProcStart - Flat32Start
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.SwitchToRealPM16ModeOffset], PM16Mode - RendezvousFunnelProcStart
     mov        qword [rcx + MP_ASSEMBLY_ADDRESS_MAP.SwitchToRealPM16ModeSize], SwitchToRealProcEnd - PM16Mode

@@ -39,6 +39,29 @@ RestoreVolatileRegisters (
   );
 
 /**
+  The function will check if New SIPI is enabled.
+  @retval TRUE     New SIPI is enabled.
+  @retval FALSE    New SIPI is not enabled.
+**/
+BOOLEAN
+IsNewSipiEnabled (
+  VOID
+  )
+{
+  CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_2_EAX  CpuidStructuredExtendedFeatureEax;
+
+  AsmCpuidEx (
+    CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS,
+    CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_2,
+    &CpuidStructuredExtendedFeatureEax.Uint32,
+    NULL,
+    NULL,
+    NULL
+    );
+  return (BOOLEAN)(CpuidStructuredExtendedFeatureEax.Bits.NewSipi == 1);
+}
+
+/**
   The function will check if BSP Execute Disable is enabled.
 
   DxeIpl may have enabled Execute Disable for BSP, APs need to
@@ -901,12 +924,22 @@ GetApResetVectorSize (
   OUT UINTN                    *SizeAbove1Mb OPTIONAL
   )
 {
-  if (SizeBelow1Mb != NULL) {
-    *SizeBelow1Mb = AddressMap->ModeTransitionOffset + sizeof (MP_CPU_EXCHANGE_INFO);
-  }
+  if (IsNewSipiEnabled ()) {
+    if (SizeBelow1Mb != NULL) {
+      *SizeBelow1Mb = 0;
+    }
 
-  if (SizeAbove1Mb != NULL) {
-    *SizeAbove1Mb = AddressMap->RendezvousFunnelSize - AddressMap->ModeTransitionOffset;
+    if (SizeAbove1Mb != NULL) {
+      *SizeAbove1Mb = AddressMap->RendezvousFunnelSize - AddressMap->NewSipiEntryOffset + sizeof (MP_CPU_EXCHANGE_INFO);
+    }
+  } else {
+    if (SizeBelow1Mb != NULL) {
+      *SizeBelow1Mb = AddressMap->ModeTransitionOffset + sizeof (MP_CPU_EXCHANGE_INFO);
+    }
+
+    if (SizeAbove1Mb != NULL) {
+      *SizeAbove1Mb = AddressMap->RendezvousFunnelSize - AddressMap->ModeTransitionOffset;
+    }
   }
 }
 
@@ -932,9 +965,6 @@ FillExchangeInfoData (
   ExchangeInfo->BufferStart = CpuMpData->WakeupBuffer;
   ExchangeInfo->ModeOffset  = CpuMpData->AddressMap.ModeEntryOffset;
 
-  ExchangeInfo->CodeSegment = AsmReadCs ();
-  ExchangeInfo->DataSegment = AsmReadDs ();
-
   ExchangeInfo->Cr3 = AsmReadCr3 ();
 
   ExchangeInfo->CFunction       = (UINTN)ApWakeupFunction;
@@ -944,21 +974,7 @@ FillExchangeInfoData (
   ExchangeInfo->CpuInfo         = (CPU_INFO_IN_HOB *)(UINTN)CpuMpData->CpuInfoInHob;
   ExchangeInfo->CpuMpData       = CpuMpData;
 
-  ExchangeInfo->EnableExecuteDisable = IsBspExecuteDisableEnabled ();
-
   ExchangeInfo->InitializeFloatingPointUnitsAddress = (UINTN)InitializeFloatingPointUnits;
-
-  //
-  // We can check either CPUID(7).ECX[bit16] or check CR4.LA57[bit12]
-  //  to determin whether 5-Level Paging is enabled.
-  // CPUID(7).ECX[bit16] shows CPU's capability, CR4.LA57[bit12] shows
-  // current system setting.
-  // Using latter way is simpler because it also eliminates the needs to
-  //  check whether platform wants to enable it.
-  //
-  Cr4.UintN                        = AsmReadCr4 ();
-  ExchangeInfo->Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
-  DEBUG ((DEBUG_INFO, "%a: 5-Level Paging = %d\n", gEfiCallerBaseName, ExchangeInfo->Enable5LevelPaging));
 
   ExchangeInfo->SevEsIsEnabled  = CpuMpData->SevEsIsEnabled;
   ExchangeInfo->SevSnpIsEnabled = CpuMpData->SevSnpIsEnabled;
@@ -971,34 +987,53 @@ FillExchangeInfoData (
     FillExchangeInfoDataSevEs (ExchangeInfo);
   }
 
-  //
-  // Get the BSP's data of GDT and IDT
-  //
-  AsmReadGdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->GdtrProfile);
-  AsmReadIdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->IdtrProfile);
+  if (IsNewSipiEnabled ()) {
+    ExchangeInfo->BufferStart = 0;
+  } else {
+    ExchangeInfo->CodeSegment = AsmReadCs ();
+    ExchangeInfo->DataSegment = AsmReadDs ();
+    //
+    // Get the BSP's data of GDT and IDT
+    //
+    AsmReadGdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->GdtrProfile);
+    AsmReadIdtr ((IA32_DESCRIPTOR *)&ExchangeInfo->IdtrProfile);
+    ExchangeInfo->EnableExecuteDisable = IsBspExecuteDisableEnabled ();
 
-  //
-  // Find a 32-bit code segment
-  //
-  Selector = (IA32_SEGMENT_DESCRIPTOR *)ExchangeInfo->GdtrProfile.Base;
-  Size     = ExchangeInfo->GdtrProfile.Limit + 1;
-  while (Size > 0) {
-    if ((Selector->Bits.L == 0) && (Selector->Bits.Type >= 8)) {
-      ExchangeInfo->ModeTransitionSegment =
-        (UINT16)((UINTN)Selector - ExchangeInfo->GdtrProfile.Base);
-      break;
+    //
+    // We can check either CPUID(7).ECX[bit16] or check CR4.LA57[bit12]
+    //  to determin whether 5-Level Paging is enabled.
+    // CPUID(7).ECX[bit16] shows CPU's capability, CR4.LA57[bit12] shows
+    // current system setting.
+    // Using latter way is simpler because it also eliminates the needs to
+    //  check whether platform wants to enable it.
+    //
+    Cr4.UintN                        = AsmReadCr4 ();
+    ExchangeInfo->Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
+    DEBUG ((DEBUG_INFO, "%a: 5-Level Paging = %d\n", gEfiCallerBaseName, ExchangeInfo->Enable5LevelPaging));
+
+    //
+    // Find a 32-bit code segment
+    //
+    Selector = (IA32_SEGMENT_DESCRIPTOR *)ExchangeInfo->GdtrProfile.Base;
+    Size     = ExchangeInfo->GdtrProfile.Limit + 1;
+    while (Size > 0) {
+      if ((Selector->Bits.L == 0) && (Selector->Bits.Type >= 8)) {
+        ExchangeInfo->ModeTransitionSegment =
+          (UINT16)((UINTN)Selector - ExchangeInfo->GdtrProfile.Base);
+        break;
+      }
+
+      Selector += 1;
+      Size     -= sizeof (IA32_SEGMENT_DESCRIPTOR);
     }
 
-    Selector += 1;
-    Size     -= sizeof (IA32_SEGMENT_DESCRIPTOR);
+    ExchangeInfo->ModeTransitionMemory = (UINT32)CpuMpData->WakeupBufferHigh;
+
+    ExchangeInfo->ModeHighMemory = ExchangeInfo->ModeTransitionMemory +
+                                   (UINT32)ExchangeInfo->ModeOffset -
+                                   (UINT32)CpuMpData->AddressMap.ModeTransitionOffset;
+    ExchangeInfo->ModeHighSegment = (UINT16)ExchangeInfo->CodeSegment;
   }
-
-  ExchangeInfo->ModeTransitionMemory = (UINT32)CpuMpData->WakeupBufferHigh;
-
-  ExchangeInfo->ModeHighMemory = ExchangeInfo->ModeTransitionMemory +
-                                 (UINT32)ExchangeInfo->ModeOffset -
-                                 (UINT32)CpuMpData->AddressMap.ModeTransitionOffset;
-  ExchangeInfo->ModeHighSegment = (UINT16)ExchangeInfo->CodeSegment;
 }
 
 /**
@@ -1177,7 +1212,10 @@ WakeUpAP (
       (CpuMpData->InitFlag   != ApInitDone))
   {
     ResetVectorRequired = TRUE;
-    AllocateResetVectorBelow1Mb (CpuMpData);
+    if (!IsNewSipiEnabled ()) {
+      AllocateResetVectorBelow1Mb (CpuMpData);
+    }
+
     AllocateSevEsAPMemory (CpuMpData);
     FillExchangeInfoData (CpuMpData);
     SaveLocalApicTimerSetting (CpuMpData);
@@ -1803,24 +1841,26 @@ MpInitLibInitialize (
   VOID
   )
 {
-  CPU_MP_DATA              *OldCpuMpData;
-  CPU_INFO_IN_HOB          *CpuInfoInHob;
-  UINT32                   MaxLogicalProcessorNumber;
-  UINT32                   ApStackSize;
-  MP_ASSEMBLY_ADDRESS_MAP  AddressMap;
-  CPU_VOLATILE_REGISTERS   VolatileRegisters;
-  UINTN                    BufferSize;
-  UINT32                   MonitorFilterSize;
-  VOID                     *MpBuffer;
-  UINTN                    Buffer;
-  CPU_MP_DATA              *CpuMpData;
-  UINT8                    ApLoopMode;
-  UINT8                    *MonitorBuffer;
-  UINTN                    Index;
-  UINTN                    ApResetVectorSizeBelow1Mb;
-  UINTN                    ApResetVectorSizeAbove1Mb;
-  UINTN                    BackupBufferAddr;
-  UINTN                    ApIdtBase;
+  CPU_MP_DATA                *OldCpuMpData;
+  CPU_INFO_IN_HOB            *CpuInfoInHob;
+  UINT32                     MaxLogicalProcessorNumber;
+  UINT32                     ApStackSize;
+  MP_ASSEMBLY_ADDRESS_MAP    AddressMap;
+  CPU_VOLATILE_REGISTERS     VolatileRegisters;
+  UINTN                      BufferSize;
+  UINT32                     MonitorFilterSize;
+  VOID                       *MpBuffer;
+  UINTN                      Buffer;
+  CPU_MP_DATA                *CpuMpData;
+  UINT8                      ApLoopMode;
+  UINT8                      *MonitorBuffer;
+  UINTN                      Index;
+  UINTN                      ApResetVectorSizeBelow1Mb;
+  UINTN                      ApResetVectorSizeAbove1Mb;
+  UINTN                      BackupBufferAddr;
+  UINTN                      ApIdtBase;
+  ENTRY_STRUCT               *Entry;
+  MSR_ENTRY_STRUCT_REGISTER  EntryMsr;
 
   OldCpuMpData = GetCpuMpDataFromGuidedHob ();
   if (OldCpuMpData == NULL) {
@@ -1957,13 +1997,41 @@ MpInitLibInitialize (
   // EfiBootServicesCode to avoid page fault if NX memory protection is enabled.
   //
   CpuMpData->WakeupBufferHigh = AllocateCodeBuffer (ApResetVectorSizeAbove1Mb);
-  CopyMem (
-    (VOID *)CpuMpData->WakeupBufferHigh,
-    CpuMpData->AddressMap.RendezvousFunnelAddress +
-    CpuMpData->AddressMap.ModeTransitionOffset,
-    ApResetVectorSizeAbove1Mb
-    );
   DEBUG ((DEBUG_INFO, "AP Vector: non-16-bit = %p/%x\n", CpuMpData->WakeupBufferHigh, ApResetVectorSizeAbove1Mb));
+  if (!IsNewSipiEnabled ()) {
+    CopyMem (
+      (VOID *)CpuMpData->WakeupBufferHigh,
+      CpuMpData->AddressMap.RendezvousFunnelAddress +
+      CpuMpData->AddressMap.ModeTransitionOffset,
+      ApResetVectorSizeAbove1Mb
+      );
+  } else {
+    CopyMem (
+      (VOID *)CpuMpData->WakeupBufferHigh,
+      CpuMpData->AddressMap.RendezvousFunnelAddress +
+      CpuMpData->AddressMap.NewSipiEntryOffset,
+      ApResetVectorSizeAbove1Mb - sizeof (MP_CPU_EXCHANGE_INFO)
+      );
+    CpuMpData->MpCpuExchangeInfo = (MP_CPU_EXCHANGE_INFO *)(UINTN)
+                                   (CpuMpData->WakeupBufferHigh + ApResetVectorSizeAbove1Mb - sizeof (MP_CPU_EXCHANGE_INFO));
+    //
+    // Set up INIT MSR
+    //
+    Entry = AllocatePages (EFI_SIZE_TO_PAGES (sizeof (*Entry)));
+    ASSERT (Entry != NULL);
+    ZeroMem (Entry, sizeof (*Entry));
+
+    Entry->Features = BIT0;
+    Entry->Rip      = CpuMpData->WakeupBufferHigh;
+    Entry->Cr3      = AsmReadCr3 ();
+    Entry->Cr0      = AsmReadCr0 ();
+    Entry->Cr4      = AsmReadCr4 ();
+
+    EntryMsr.Uint64       = (UINT64)(UINTN)Entry;
+    EntryMsr.Bits.Enabled = 1;
+    AsmWriteMsr64 (MSR_ENTRY_STRUCT, EntryMsr.Uint64);
+    DEBUG ((DEBUG_ERROR, "MSR(MSR_ENTRY_STRUCT) = %lx\n", EntryMsr.Uint64));
+  }
 
   //
   // Enable the local APIC for Virtual Wire Mode.

@@ -27,6 +27,7 @@ struc MP_ASSEMBLY_ADDRESS_MAP
   .RelocateApLoopFuncAddress     CTYPE_UINTN 1
   .RelocateApLoopFuncSize        CTYPE_UINTN 1
   .ModeTransitionOffset          CTYPE_UINTN 1
+  .NewSipiEntryOffset            CTYPE_UINTN 1
   .SwitchToRealNoNxOffset        CTYPE_UINTN 1
   .SwitchToRealPM16ModeOffset    CTYPE_UINTN 1
   .SwitchToRealPM16ModeSize      CTYPE_UINTN 1
