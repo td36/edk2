@@ -303,7 +303,7 @@ CommonExceptionHandlerWorker (
   @retval EFI_UNSUPPORTED         This function is not supported.
 **/
 EFI_STATUS
-ArchSetupExceptionStack (
+IdtInitializeSeparateExceptionStacks (
   IN     VOID   *Buffer,
   IN OUT UINTN  *BufferSize
   );

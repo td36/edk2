@@ -116,7 +116,7 @@ ArchRestoreExceptionContext (
   @retval EFI_BUFFER_TOO_SMALL    This BufferSize is too small.
 **/
 EFI_STATUS
-ArchSetupExceptionStack (
+IdtInitializeSeparateExceptionStacks (
   IN     VOID   *Buffer,
   IN OUT UINTN  *BufferSize
   )

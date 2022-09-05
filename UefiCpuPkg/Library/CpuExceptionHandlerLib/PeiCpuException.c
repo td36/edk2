@@ -210,5 +210,5 @@ InitializeSeparateExceptionStacks (
     return EFI_UNSUPPORTED;
   }
 
-  return ArchSetupExceptionStack (Buffer, BufferSize);
+  return IdtInitializeSeparateExceptionStacks (Buffer, BufferSize);
 }

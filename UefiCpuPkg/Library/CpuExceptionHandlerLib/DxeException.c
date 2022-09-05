@@ -122,16 +122,14 @@ InitializeSeparateExceptionStacks (
   IN OUT UINTN  *BufferSize
   )
 {
-  UINTN       LocalBufferSize;
-  EFI_STATUS  Status;
+  UINTN  LocalBufferSize;
 
   if ((Buffer == NULL) && (BufferSize == NULL)) {
     SetMem (mBuffer, sizeof (mBuffer), 0);
     LocalBufferSize = sizeof (mBuffer);
-    Status          = ArchSetupExceptionStack (mBuffer, &LocalBufferSize);
-    ASSERT_EFI_ERROR (Status);
-    return Status;
-  } else {
-    return ArchSetupExceptionStack (Buffer, BufferSize);
+    BufferSize      = &LocalBufferSize;
+    Buffer          = mBuffer;
   }
+
+  return IdtInitializeSeparateExceptionStacks (Buffer, BufferSize);
 }
