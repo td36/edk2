@@ -1598,6 +1598,50 @@ typedef union {
   UINT32    Uint32;
 } CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_EDX;
 
+#define CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_1  0x01
+
+/**
+  CPUID Structured Extended Feature Flags Enumeration in EAX for CPUID leaf
+  #CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS sub leaf
+  #CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_1.
+**/
+typedef union {
+  ///
+  /// Individual bit fields
+  ///
+  struct {
+    ///
+    /// [Bit 4:0] Reserved.
+    ///
+    UINT32    Reserved   : 5;
+    ///
+    /// [Bit 5] : Vector Neural Network Instructions supporting BFLOAT16 inputs
+    /// and conversion instructions from IEEE single precision if 1.
+    ///
+    UINT32    Avx512Bf16 : 1;
+    ///
+    /// [Bit 16:6] Reserved.
+    ///
+    UINT32    Reserved2  : 11;
+    ///
+    /// [Bit 17] : Support the new FRED transitions if 1.
+    ///
+    UINT32    Fred       : 1;
+    ///
+    /// [Bit 18] : Support the LKGS instruction if 1.
+    ///
+    UINT32    Lkgs       : 1;
+    ///
+    /// [Bit 31:19] Reserved.
+    ///
+    UINT32    Reserved3  : 13;
+  } Bits;
+  ///
+  /// All bit fields as a 32-bit value
+  ///
+  UINT32    Uint32;
+} CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_1_EAX;
+
 #define CPUID_STRUCTURED_EXTENDED_FEATURE_FLAGS_SUB_LEAF_2  0x02
 
 /**
