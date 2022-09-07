@@ -1416,9 +1416,7 @@ InitializePageTableLib (
   if ((*PageTableBase != 0) &&
       ((*Attributes & PAGE_TABLE_LIB_PAGING_CONTEXT_IA32_X64_ATTRIBUTES_PAE) != 0))
   {
-    DisableReadOnlyPageWriteProtect ();
     InitializePageTablePool (1);
-    EnableReadOnlyPageWriteProtect ();
   }
 
   if (HEAP_GUARD_NONSTOP_MODE || NULL_DETECTION_NONSTOP_MODE) {
