@@ -678,14 +678,30 @@ SmmSetMemoryAttributes (
   IN  UINT64                Attributes
   )
 {
-  IA32_CR4  Cr4;
-  UINTN     PageTableBase;
-  BOOLEAN   Enable5LevelPaging;
+  IA32_CR4    Cr4;
+  UINTN       PageTableBase;
+  BOOLEAN     Enable5LevelPaging;
+  EFI_STATUS  Status;
 
   PageTableBase      = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
   Cr4.UintN          = AsmReadCr4 ();
   Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
-  return SmmSetMemoryAttributesEx (PageTableBase, Enable5LevelPaging, BaseAddress, Length, Attributes, NULL);
+
+  if (mSmmWritablePageTable != 0) {
+    //
+    // Before modifying protected original RO page table,
+    // set Cr3 to mSmmWritablePageTable.
+    //
+    DisableReadOnlyPageWriteProtect ();
+  }
+
+  Status = SmmSetMemoryAttributesEx (PageTableBase, Enable5LevelPaging, BaseAddress, Length, Attributes, NULL);
+
+  if (mSmmWritablePageTable != 0) {
+    EnableReadOnlyPageWriteProtect (PageTableBase);
+  }
+
+  return Status;
 }
 
 /**
