@@ -2062,7 +2062,8 @@ MpInitLibInitialize (
     Entry->Cr4      = AsmReadCr4 ();
 
     EntryMsr.Uint64       = (UINT64)(UINTN)Entry;
-    EntryMsr.Bits.Enabled = 1;
+    // Remove below line because simics don't support this bit yet
+    //EntryMsr.Bits.Enabled = 1;
     AsmWriteMsr64 (MSR_ENTRY_STRUCT, EntryMsr.Uint64);
     DEBUG ((DEBUG_ERROR, "MSR(MSR_ENTRY_STRUCT) = %lx\n", EntryMsr.Uint64));
   }
