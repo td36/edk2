@@ -422,7 +422,8 @@ typedef
   IN UINTN                   NumberToFinish,
   IN UINTN                   Pm16CodeSegment,
   IN UINTN                   SevEsAPJumpTable,
-  IN UINTN                   WakeupBuffer
+  IN UINTN                   WakeupBuffer,
+  IN UINTN                   Cr3
   );
 
 /**

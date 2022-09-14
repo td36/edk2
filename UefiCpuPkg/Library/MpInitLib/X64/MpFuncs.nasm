@@ -335,7 +335,7 @@ CProcedureInvoke:
 RendezvousFunnelProcEnd:
 
 ;-------------------------------------------------------------------------------------
-;  AsmRelocateApLoop (MwaitSupport, ApTargetCState, PmCodeSegment, TopOfApStack, CountTofinish, Pm16CodeSegment, SevEsAPJumpTable, WakeupBuffer);
+;  AsmRelocateApLoop (MwaitSupport, ApTargetCState, PmCodeSegment, TopOfApStack, CountTofinish, Pm16CodeSegment, SevEsAPJumpTable, WakeupBuffer, Cr3);
 ;-------------------------------------------------------------------------------------
 AsmRelocateApLoopStart:
 BITS 64
@@ -393,78 +393,35 @@ NoSevEs:
     mov        r10, [rsp + 48]   ; Pm16CodeSegment
     mov        rax, [rsp + 56]   ; SevEsAPJumpTable
     mov        rbx, [rsp + 64]   ; WakeupBuffer
+    mov        r8, [rsp + 72]   ; Cr3
+    mov        cr3, r8
+    ; Should not access old stack any more because it's not mapped by page table.
     mov        rsp, r9           ; TopOfApStack
 
     push       rax               ; Save SevEsAPJumpTable
     push       rbx               ; Save WakeupBuffer
     push       r10               ; Save Pm16CodeSegment
-    push       rcx               ; Save MwaitSupport
-    push       rdx               ; Save ApTargetCState
-
-    lea        rax, [PmEntry]    ; rax <- The start address of transition code
-
-    push       r8
-    push       rax
-
-    ;
-    ; Clear R8 - R15, for reset, before going into 32-bit mode
-    ;
-    xor        r8, r8
-    xor        r9, r9
-    xor        r10, r10
-    xor        r11, r11
-    xor        r12, r12
-    xor        r13, r13
-    xor        r14, r14
-    xor        r15, r15
-
-    ;
-    ; Far return into 32-bit mode
-    ;
-    retfq
-
-BITS 32
-PmEntry:
-    mov        eax, cr0
-    btr        eax, 31           ; Clear CR0.PG
-    mov        cr0, eax          ; Disable paging and caches
-
-    mov        ecx, 0xc0000080
-    rdmsr
-    and        ah, ~ 1           ; Clear LME
-    wrmsr
-    mov        eax, cr4
-    and        al, ~ (1 << 5)    ; Clear PAE
-    mov        cr4, eax
-
-    pop        edx
-    add        esp, 4
-    pop        ecx,
-    add        esp, 4
 
 MwaitCheck:
     cmp        cl, 1              ; Check mwait-monitor support
     jnz        HltLoop
-    mov        ebx, edx           ; Save C-State to ebx
+    mov        rbx, rdx           ; Save C-State to ebx
 MwaitLoop:
     cli
-    mov        eax, esp           ; Set Monitor Address
-    xor        ecx, ecx           ; ecx = 0
-    xor        edx, edx           ; edx = 0
+    mov        rax, rsp           ; Set Monitor Address
+    xor        rcx, rcx           ; ecx = 0
+    xor        rdx, rdx           ; edx = 0
     monitor
-    mov        eax, ebx           ; Mwait Cx, Target C-State per eax[7:4]
+    mov        rax, rbx           ; Mwait Cx, Target C-State per eax[7:4]
     shl        eax, 4
     mwait
     jmp        MwaitLoop
 
 HltLoop:
-    pop        edx                ; PM16CodeSegment
-    add        esp, 4
-    pop        ebx                ; WakeupBuffer
-    add        esp, 4
-    pop        eax                ; SevEsAPJumpTable
-    add        esp, 4
-    cmp        eax, 0             ; Check for SEV-ES
+    pop        rdx                ; PM16CodeSegment
+    pop        rbx                ; WakeupBuffer
+    pop        rax                ; SevEsAPJumpTable
+    cmp        rax, 0             ; Check for SEV-ES
     je         DoHlt
 
     cli
