@@ -56,7 +56,7 @@ OneTrampoline %+ Vector:
     ; If current address is 4K align, which means excepiont happens in ring3
     push    rax
     lea     rax, [OneTrampoline %+ Vector]
-    and     ax,  ~0xfff
+    and     ax,  0xfff
     jz      AsmFredBeginRing3
     jmp     AsmFredBeginRing0
     TIMES   (32 - ($ - (OneTrampoline %+ Vector))) DB 0xCC
