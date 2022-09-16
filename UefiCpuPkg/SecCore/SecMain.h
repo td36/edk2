@@ -10,6 +10,8 @@
 #define _SEC_CORE_H_
 
 #include <PiPei.h>
+#include <Register/Cpuid.h>
+#include <Register/Msr.h>
 
 #include <Ppi/SecPlatformInformation2.h>
 #include <Ppi/TemporaryRamDone.h>
@@ -36,16 +38,21 @@
 
 #define SEC_IDT_ENTRY_COUNT  34
 
-typedef struct _SEC_IDT_TABLE {
+typedef struct {
   //
   // Reserved 8 bytes preceding IDT to store EFI_PEI_SERVICES**, since IDT base
   // address should be 8-byte alignment.
   // Note: For IA32, only the 4 bytes immediately preceding IDT is used to store
   // EFI_PEI_SERVICES**
+  // When FS BASE is used to store EFI_PEI_SERVICES**, EFI_PEI_SERVICES** is
+  // stored in the first 8 bytes of a 4K area which pointed by FS BASE.
   //
-  UINT64                      PeiService;
-  IA32_IDT_GATE_DESCRIPTOR    IdtTable[SEC_IDT_ENTRY_COUNT];
-} SEC_IDT_TABLE;
+  UINT64    PeiService;
+  union {
+    IA32_IDT_GATE_DESCRIPTOR    IdtTable[SEC_IDT_ENTRY_COUNT];
+    UINT8                       FsPage[SIZE_4KB - sizeof (UINT64)];
+  } IdtTableOrFsPage;
+} SEC_IDT_TABLE_OR_FS_PAGE;
 
 /**
   TemporaryRamDone() disables the use of Temporary RAM. If present, this service is invoked
