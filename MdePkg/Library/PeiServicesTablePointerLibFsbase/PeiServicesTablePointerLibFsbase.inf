@@ -1,0 +1,37 @@
+## @file
+# Instance of PEI Services Table Pointer Library using FS BASE for the table pointer.
+#
+# PEI Services Table Pointer Library implementation that retrieves a pointer to the PEI
+# Services Table from the FS BASE on x64.
+#
+# Copyright (c) 2022, Intel Corporation. All rights reserved.<BR>
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = PeiServicesTablePointerLibFsbase
+  MODULE_UNI_FILE                = PeiServicesTablePointerLibFsbase.uni
+  FILE_GUID                      = 48606FA7-CAE7-4DB2-A86F-535B8FE4664E
+  MODULE_TYPE                    = PEIM
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = PeiServicesTablePointerLib|PEIM PEI_CORE SEC
+
+
+#
+#  VALID_ARCHITECTURES           = X64
+#
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[Sources]
+  PeiServicesTablePointer.c
+
+[LibraryClasses]
+  DebugLib
+  BaseLib
+  BaseMemoryLib
