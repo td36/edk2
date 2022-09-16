@@ -10,8 +10,6 @@
 #define _SEC_CORE_H_
 
 #include <PiPei.h>
-#include <Register/Cpuid.h>
-#include <Register/Msr.h>
 
 #include <Ppi/SecPlatformInformation2.h>
 #include <Ppi/TemporaryRamDone.h>
