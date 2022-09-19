@@ -2478,7 +2478,7 @@ MtrrSetMemoryAttributesInMtrrSettings (
       // 2.5. Remove the [0, 1MB) MTRR if it still exists (not merged with other range)
       //
       for (Index = 0; Index < WorkingVariableMtrrCount; Index++) {
-        if ((WorkingVariableMtrr[Index].BaseAddress == 0) && (WorkingVariableMtrr[Index].Length == FixedMtrrMemoryLength)) {
+        if ((WorkingVariableMtrr[Index].BaseAddress == 0) && (WorkingVariableMtrr[Index].Length == SIZE_1MB)) {
           ASSERT (WorkingVariableMtrr[Index].Type == CacheUncacheable);
           WorkingVariableMtrrCount--;
           CopyMem (
