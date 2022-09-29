@@ -397,7 +397,7 @@ UnitTestIsMtrrSupported (
   SystemParameter.VariableMtrrCount  = 0;
   SystemParameter.FixedMtrrSupported = TRUE;
   InitializeMtrrRegs (&SystemParameter);
-  UT_ASSERT_FALSE (IsMtrrSupported ());
+  UT_ASSERT_TRUE (IsMtrrSupported ());
 
   //
   // MTRR capability on in CPUID leaf, but no fixed MTRRs.
@@ -406,7 +406,7 @@ UnitTestIsMtrrSupported (
   SystemParameter.VariableMtrrCount  = 7;
   SystemParameter.FixedMtrrSupported = FALSE;
   InitializeMtrrRegs (&SystemParameter);
-  UT_ASSERT_FALSE (IsMtrrSupported ());
+  UT_ASSERT_TRUE (IsMtrrSupported ());
 
   //
   // MTRR capability on in CPUID leaf with both variable and fixed MTRRs.
@@ -548,7 +548,7 @@ UnitTestGetFirmwareVariableMtrrCount (
   InitializeMtrrRegs (&SystemParameter);
   PatchPcdSet32 (PcdCpuNumberOfReservedVariableMtrrs, 2);
   Result = GetFirmwareVariableMtrrCount ();
-  UT_ASSERT_EQUAL (Result, 0);
+  UT_ASSERT_EQUAL (Result, SystemParameter.VariableMtrrCount - 2);
 
   //
   // Expect ASSERT() if variable MTRR count is > MTRR_NUMBER_OF_VARIABLE_MTRR
@@ -906,14 +906,14 @@ UnitTestMtrrGetDefaultMemoryType (
   SystemParameter.FixedMtrrSupported = FALSE;
   InitializeMtrrRegs (&SystemParameter);
   Result = MtrrGetDefaultMemoryType ();
-  UT_ASSERT_EQUAL (Result, CacheUncacheable);
+  UT_ASSERT_EQUAL (Result, SystemParameter.DefaultCacheType);
 
   SystemParameter.MtrrSupported      = TRUE;
   SystemParameter.FixedMtrrSupported = TRUE;
   SystemParameter.VariableMtrrCount  = 0;
   InitializeMtrrRegs (&SystemParameter);
   Result = MtrrGetDefaultMemoryType ();
-  UT_ASSERT_EQUAL (Result, CacheUncacheable);
+  UT_ASSERT_EQUAL (Result, SystemParameter.DefaultCacheType);
 
   return UNIT_TEST_PASSED;
 }

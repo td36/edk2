@@ -2922,15 +2922,7 @@ IsMtrrSupported (
   VOID
   )
 {
-  BOOLEAN  FixedMtrrSupported;
-  UINT32   VariableMtrrCount;
-
-  MtrrLibIsMtrrSupported (&FixedMtrrSupported, &VariableMtrrCount);
-  if (!FixedMtrrSupported || (VariableMtrrCount == 0)) {
-    return FALSE;
-  }
-
-  return TRUE;
+  return MtrrLibIsMtrrSupported (NULL, NULL);
 }
 
 /**
