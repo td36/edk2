@@ -213,6 +213,9 @@ UnitTestMtrrSetMemoryAttributesInMtrrSettings (
   UINT32             ActualVariableMtrrUsage;
   UINTN              ActualMemoryRangesCount;
 
+  MTRR_MEMORY_RANGE  ReturnedMemoryRanges[MTRR_NUMBER_OF_FIXED_MTRR   * sizeof (UINT64) + 2 * MTRR_NUMBER_OF_VARIABLE_MTRR + 1];
+  UINTN              ReturnedMemoryRangesCount;
+
   MTRR_SETTINGS  *Mtrrs[2];
 
   SystemParameter = (MTRR_LIB_SYSTEM_PARAMETER *)Context;
@@ -291,11 +294,21 @@ UnitTestMtrrSetMemoryAttributesInMtrrSettings (
       &ActualMemoryRangesCount,
       &ActualVariableMtrrUsage
       );
-
     UT_LOG_INFO ("--- Actual Memory Ranges [%d] ---\n", ActualMemoryRangesCount);
     DumpMemoryRanges (ActualMemoryRanges, ActualMemoryRangesCount);
     VerifyMemoryRanges (ExpectedMemoryRanges, ExpectedMemoryRangesCount, ActualMemoryRanges, ActualMemoryRangesCount);
     UT_ASSERT_TRUE (ExpectedVariableMtrrUsage >= ActualVariableMtrrUsage);
+
+    ReturnedMemoryRangesCount = ARRAY_SIZE (ReturnedMemoryRanges);
+    Status = MtrrGetMemoryAttributesInMtrrSettings (
+              Mtrrs[MtrrIndex],
+              ReturnedMemoryRanges,
+              &ReturnedMemoryRangesCount
+              );
+    UT_ASSERT_STATUS_EQUAL (Status, RETURN_SUCCESS);
+    UT_LOG_INFO ("--- Returned Memory Ranges [%d] ---\n", ReturnedMemoryRangesCount);
+    DumpMemoryRanges (ReturnedMemoryRanges, ReturnedMemoryRangesCount);
+    VerifyMemoryRanges (ExpectedMemoryRanges, ExpectedMemoryRangesCount, ReturnedMemoryRanges, ReturnedMemoryRangesCount);
 
     ZeroMem (&LocalMtrrs, sizeof (LocalMtrrs));
   }
@@ -961,6 +974,9 @@ UnitTestMtrrSetMemoryAttributeInMtrrSettings (
   UINT32             ActualVariableMtrrUsage;
   UINTN              ActualMemoryRangesCount;
 
+  MTRR_MEMORY_RANGE  ReturnedMemoryRanges[MTRR_NUMBER_OF_FIXED_MTRR * sizeof(UINT64) + 2 * MTRR_NUMBER_OF_VARIABLE_MTRR + 1];
+  UINTN              ReturnedMemoryRangesCount;
+
   MTRR_SETTINGS  *Mtrrs[2];
 
   SystemParameter = (MTRR_LIB_SYSTEM_PARAMETER *)Context;
@@ -1036,6 +1052,17 @@ UnitTestMtrrSetMemoryAttributeInMtrrSettings (
     DumpMemoryRanges (ActualMemoryRanges, ActualMemoryRangesCount);
     VerifyMemoryRanges (ExpectedMemoryRanges, ExpectedMemoryRangesCount, ActualMemoryRanges, ActualMemoryRangesCount);
     UT_ASSERT_TRUE (ExpectedVariableMtrrUsage >= ActualVariableMtrrUsage);
+
+    ReturnedMemoryRangesCount = ARRAY_SIZE (ReturnedMemoryRanges);
+    Status = MtrrGetMemoryAttributesInMtrrSettings (
+      &LocalMtrrs,
+      ReturnedMemoryRanges,
+      &ReturnedMemoryRangesCount
+      );
+    UT_ASSERT_STATUS_EQUAL (Status, RETURN_SUCCESS);
+    UT_LOG_INFO ("--- Returned Memory Ranges [%d] ---\n", ReturnedMemoryRangesCount);
+    DumpMemoryRanges (ReturnedMemoryRanges, ReturnedMemoryRangesCount);
+    VerifyMemoryRanges (ExpectedMemoryRanges, ExpectedMemoryRangesCount, ReturnedMemoryRanges, ReturnedMemoryRangesCount);
 
     ZeroMem (&LocalMtrrs, sizeof (LocalMtrrs));
   }
