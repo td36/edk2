@@ -2858,6 +2858,9 @@ MtrrGetAllMtrrs (
 /**
   This function sets all MTRRs (variable and fixed)
 
+  Note: The behavior of this function is to program everything in MtrrSetting to hardware.
+        MTRR might not be enabled due to enable bit is clear in MtrrSetting->MtrrDefType.
+
   @param[in]  MtrrSetting  A buffer holding all MTRRs content.
 
   @retval The pointer of MtrrSetting
@@ -2869,9 +2872,12 @@ MtrrSetAllMtrrs (
   IN MTRR_SETTINGS  *MtrrSetting
   )
 {
-  MTRR_CONTEXT  MtrrContext;
+  BOOLEAN                          FixedMtrrSupported;
+  MSR_IA32_MTRR_DEF_TYPE_REGISTER  *MtrrDefType;
+  MTRR_CONTEXT                     MtrrContext;
 
-  if (!IsMtrrSupported ()) {
+  MtrrDefType = (MSR_IA32_MTRR_DEF_TYPE_REGISTER *)&MtrrSetting->MtrrDefType;
+  if (!MtrrLibIsMtrrSupported (&FixedMtrrSupported, NULL)) {
     return MtrrSetting;
   }
 
@@ -2880,7 +2886,13 @@ MtrrSetAllMtrrs (
   //
   // Set fixed MTRRs
   //
-  MtrrSetFixedMtrrWorker (&MtrrSetting->Fixed);
+  ASSERT (FixedMtrrSupported || (MtrrDefType->Bits.FE == 0));
+  if (FixedMtrrSupported) {
+    //
+    // Program all the fixed MTRR settings regardless fixed MTRR is enabled or not.
+    //
+    MtrrSetFixedMtrrWorker (&MtrrSetting->Fixed);
+  }
 
   //
   // Set variable MTRRs
