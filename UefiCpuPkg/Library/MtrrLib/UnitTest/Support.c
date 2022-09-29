@@ -41,7 +41,6 @@ Rand (
   if (mRandomInput) {
     return rand ();
   } else {
-    DEBUG ((DEBUG_INFO, "random: %d\n", mNumberIndex));
     return mNumbers[mNumberIndex++ % (mNumberCount - 1)];
   }
 }
@@ -174,8 +173,11 @@ UnitTestMtrrLibAsmReadMsr64 (
 {
   UINT32  Index;
 
+  UT_ASSERT_EQUAL (mCpuidVersionInfoEdx.Bits.MTRR, 1);
+
   for (Index = 0; Index < ARRAY_SIZE (mFixedMtrrsValue); Index++) {
     if (MsrIndex == mFixedMtrrsIndex[Index]) {
+      UT_ASSERT_EQUAL (mMtrrCapMsr.Bits.FIX, 1);
       return mFixedMtrrsValue[Index];
     }
   }
@@ -183,6 +185,7 @@ UnitTestMtrrLibAsmReadMsr64 (
   if ((MsrIndex >= MSR_IA32_MTRR_PHYSBASE0) &&
       (MsrIndex <= MSR_IA32_MTRR_PHYSMASK0 + (MTRR_NUMBER_OF_VARIABLE_MTRR << 1)))
   {
+    UT_ASSERT_TRUE (((MsrIndex - MSR_IA32_MTRR_PHYSBASE0) >> 1) < mMtrrCapMsr.Bits.VCNT);
     if (MsrIndex % 2 == 0) {
       Index = (MsrIndex - MSR_IA32_MTRR_PHYSBASE0) >> 1;
       return mVariableMtrrsPhysBase[Index].Uint64;
@@ -233,8 +236,11 @@ UnitTestMtrrLibAsmWriteMsr64 (
 {
   UINT32  Index;
 
+  UT_ASSERT_EQUAL (mCpuidVersionInfoEdx.Bits.MTRR, 1);
+
   for (Index = 0; Index < ARRAY_SIZE (mFixedMtrrsValue); Index++) {
     if (MsrIndex == mFixedMtrrsIndex[Index]) {
+      UT_ASSERT_EQUAL (mMtrrCapMsr.Bits.FIX, 1);
       mFixedMtrrsValue[Index] = Value;
       return Value;
     }
@@ -243,6 +249,7 @@ UnitTestMtrrLibAsmWriteMsr64 (
   if ((MsrIndex >= MSR_IA32_MTRR_PHYSBASE0) &&
       (MsrIndex <= MSR_IA32_MTRR_PHYSMASK0 + (MTRR_NUMBER_OF_VARIABLE_MTRR << 1)))
   {
+    UT_ASSERT_TRUE (((MsrIndex - MSR_IA32_MTRR_PHYSBASE0) >> 1) < mMtrrCapMsr.Bits.VCNT);
     if (MsrIndex % 2 == 0) {
       Index                                = (MsrIndex - MSR_IA32_MTRR_PHYSBASE0) >> 1;
       mVariableMtrrsPhysBase[Index].Uint64 = Value;
@@ -255,6 +262,9 @@ UnitTestMtrrLibAsmWriteMsr64 (
   }
 
   if (MsrIndex == MSR_IA32_MTRR_DEF_TYPE) {
+    if (((MSR_IA32_MTRR_DEF_TYPE_REGISTER *) &Value)->Bits.FE == 1) {
+      UT_ASSERT_EQUAL (mMtrrCapMsr.Bits.FIX, 1);
+    }
     mDefTypeMsr.Uint64 = Value;
     return Value;
   }
@@ -288,16 +298,11 @@ InitializeMtrrRegs (
 
   for (Index = 0; Index < ARRAY_SIZE (mVariableMtrrsPhysBase); Index++) {
     mVariableMtrrsPhysBase[Index].Uint64         = 0;
-    mVariableMtrrsPhysBase[Index].Bits.Type      = SystemParameter->DefaultCacheType;
-    mVariableMtrrsPhysBase[Index].Bits.Reserved1 = 0;
-
     mVariableMtrrsPhysMask[Index].Uint64         = 0;
-    mVariableMtrrsPhysMask[Index].Bits.V         = 0;
-    mVariableMtrrsPhysMask[Index].Bits.Reserved1 = 0;
   }
 
   mDefTypeMsr.Bits.E         = 1;
-  mDefTypeMsr.Bits.FE        = 1;
+  mDefTypeMsr.Bits.FE        = 0;
   mDefTypeMsr.Bits.Type      = SystemParameter->DefaultCacheType;
   mDefTypeMsr.Bits.Reserved1 = 0;
   mDefTypeMsr.Bits.Reserved2 = 0;
