@@ -2819,28 +2819,38 @@ MtrrGetAllMtrrs (
   OUT MTRR_SETTINGS  *MtrrSetting
   )
 {
-  if (!IsMtrrSupported ()) {
+  BOOLEAN                          FixedMtrrSupported;
+  UINT32                           VariableMtrrCount;
+  MSR_IA32_MTRR_DEF_TYPE_REGISTER  *MtrrDefType;
+
+  ZeroMem (MtrrSetting, sizeof (*MtrrSetting));
+
+  MtrrDefType = (MSR_IA32_MTRR_DEF_TYPE_REGISTER *)&MtrrSetting->MtrrDefType;
+  if (!MtrrLibIsMtrrSupported (&FixedMtrrSupported, &VariableMtrrCount)) {
     return MtrrSetting;
   }
 
   //
+  // Get MTRR_DEF_TYPE value
+  //
+  MtrrDefType->Uint64 = AsmReadMsr64 (MSR_IA32_MTRR_DEF_TYPE);
+  ASSERT (FixedMtrrSupported || (MtrrDefType->Bits.FE == 0));
+
+  //
   // Get fixed MTRRs
   //
-  MtrrGetFixedMtrrWorker (&MtrrSetting->Fixed);
+  if (MtrrDefType->Bits.FE == 1) {
+    MtrrGetFixedMtrrWorker (&MtrrSetting->Fixed);
+  }
 
   //
   // Get variable MTRRs
   //
   MtrrGetVariableMtrrWorker (
     NULL,
-    GetVariableMtrrCountWorker (),
+    VariableMtrrCount,
     &MtrrSetting->Variables
     );
-
-  //
-  // Get MTRR_DEF_TYPE value
-  //
-  MtrrSetting->MtrrDefType = AsmReadMsr64 (MSR_IA32_MTRR_DEF_TYPE);
 
   return MtrrSetting;
 }
@@ -2902,10 +2912,12 @@ IsMtrrSupported (
 {
   BOOLEAN  FixedMtrrSupported;
   UINT32   VariableMtrrCount;
+
   MtrrLibIsMtrrSupported (&FixedMtrrSupported, &VariableMtrrCount);
   if (!FixedMtrrSupported || (VariableMtrrCount == 0)) {
     return FALSE;
   }
+
   return TRUE;
 }
 
