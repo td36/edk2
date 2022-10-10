@@ -349,13 +349,13 @@ MtrrLibPreMtrrChange (
   //
   // Enter no fill cache mode, CD=1(Bit30), NW=0 (Bit29)
   //
-  AsmDisableCache ();
+  // AsmDisableCache ();
 
   //
   // Save original CR4 value and clear PGE flag (Bit 7)
   //
   MtrrContext->Cr4 = AsmReadCr4 ();
-  AsmWriteCr4 (MtrrContext->Cr4 & (~BIT7));
+  // AsmWriteCr4 (MtrrContext->Cr4 & (~BIT7));
 
   //
   // Flush all TLBs
