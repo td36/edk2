@@ -17,16 +17,16 @@
 
   @return Pointer to the allocated IA32_DESCRIPTOR buffer.
 **/
-VOID *
+BSP_EXCEPTION_CONFIG *
 InitializeBspIdt (
   VOID
   )
 {
-  UINTN            *NewIdtTable;
-  IA32_DESCRIPTOR  *Idtr;
+  UINTN                 *NewIdtTable;
+  BSP_EXCEPTION_CONFIG  *BspIdtrBuffer;
 
-  Idtr = AllocateZeroPool (sizeof (IA32_DESCRIPTOR));
-  ASSERT (Idtr != NULL);
+  BspIdtrBuffer = AllocateZeroPool (sizeof (BSP_EXCEPTION_CONFIG));
+  ASSERT (BspIdtrBuffer != NULL);
   NewIdtTable = AllocateZeroPool (sizeof (IA32_IDT_GATE_DESCRIPTOR) * CPU_INTERRUPT_NUM + sizeof (UINTN));
   ASSERT (NewIdtTable != NULL);
   //
@@ -35,11 +35,31 @@ InitializeBspIdt (
   *NewIdtTable = (UINTN)GetPeiServicesTablePointer ();
   NewIdtTable  = (UINTN *)((UINTN)NewIdtTable + sizeof (UINTN));
 
-  Idtr->Base  = (UINTN)NewIdtTable;
-  Idtr->Limit = (UINT16)(sizeof (IA32_IDT_GATE_DESCRIPTOR) * CPU_INTERRUPT_NUM - 1);
+  BspIdtrBuffer->BspIdtr.Base  = (UINTN)NewIdtTable;
+  BspIdtrBuffer->BspIdtr.Limit = (UINT16)(sizeof (IA32_IDT_GATE_DESCRIPTOR) * CPU_INTERRUPT_NUM - 1);
 
-  AsmWriteIdtr (Idtr);
-  return Idtr;
+  AsmWriteIdtr (&(BspIdtrBuffer->BspIdtr));
+  return BspIdtrBuffer;
+}
+
+/**
+  Free BspExceptionConfig Buffer. If Idt is used, also free the new allocated Idt entries.
+
+  @param[in] BspExceptionConfig  Pointer to BspExceptionConfig buffer.
+**/
+VOID
+FreeBspExceptionConfigBuffer (
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig
+  )
+{
+  if (!IsFredEnabled ()) {
+    //
+    // If PEIM, also free the PeiServicePointer before new Idt table.
+    //
+    FreePool ((VOID *)(BspExceptionConfig->BspIdtr.Base - sizeof (UINTN)));
+  }
+
+  FreePool (BspExceptionConfig);
 }
 
 /**

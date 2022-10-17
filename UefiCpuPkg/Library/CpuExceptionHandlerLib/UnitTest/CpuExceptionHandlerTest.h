@@ -47,22 +47,48 @@
 #include <Library/SerialPortLib.h>
 #include <Library/HobLib.h>
 #include <Library/CpuPageTableLib.h>
+#include <Library/CpuLib.h>
 #include <Guid/MemoryAllocationHob.h>
 #include <Protocol/MpService.h>
 #include <PiPei.h>
 #include <Ppi/MpServices2.h>
+#include <Register/ArchitecturalMsr.h>
 
 #define UNIT_TEST_APP_NAME     "Cpu Exception Handler Lib Unit Tests"
 #define UNIT_TEST_APP_VERSION  "1.0"
 
-#define  CPU_INTERRUPT_NUM       256
-#define  SPEC_MAX_EXCEPTION_NUM  22
-#define  CR4_RESERVED_BIT        BIT15
+#define CPU_INTERRUPT_NUM       256
+#define SPEC_MAX_EXCEPTION_NUM  22
+#define CR4_RESERVED_BIT        BIT15
+#define IA32_FRED_CONFIG        0x1D4
+#define IA32_FRED_RSP0          0x1CC
+#define IA32_FRED_RSP1          0x1CD
+#define IA32_FRED_RSP2          0x1CE
+#define IA32_FRED_RSP3          0x1CF
+#define IA32_FRED_STKLVLS       0x1D0
+
+typedef union {
+  UINT64             BspFredConfig;
+  IA32_DESCRIPTOR    BspIdtr;
+} BSP_EXCEPTION_CONFIG;
 
 typedef struct {
   IA32_DESCRIPTOR    OriginalGdtr;
   IA32_DESCRIPTOR    OriginalIdtr;
   UINT16             Tr;
+} CPU_IDT_REGISTER_BUFFER;
+
+typedef struct {
+  UINT64    FredConfig;
+  UINT64    FredStkLvls;
+  UINT64    FredRsp1;
+  UINT64    FredRsp2;
+  UINT64    FredRsp3;
+} CPU_FRED_MSR_BUFFER;
+
+typedef union {
+  CPU_IDT_REGISTER_BUFFER    IdtRegisterBuffer;
+  CPU_FRED_MSR_BUFFER        FredMsrBuffer;
 } CPU_REGISTER_BUFFER;
 
 typedef union {
@@ -107,14 +133,24 @@ extern EFI_EXCEPTION_TYPE  mExceptionType;
 extern UINTN               mRspAddress[];
 
 /**
-  Initialize Bsp Idt with a new Idt table and return the IA32_DESCRIPTOR buffer.
+  Initialize Bsp Idt with a new Idt table and return the BSP_EXCEPTION_CONFIG buffer.
   In PEIM, store original PeiServicePointer before new Idt table.
 
-  @return Pointer to the allocated IA32_DESCRIPTOR buffer.
+  @return Pointer to the allocated BSP_EXCEPTION_CONFIG buffer.
 **/
-VOID *
+BSP_EXCEPTION_CONFIG *
 InitializeBspIdt (
   VOID
+  );
+
+/**
+  Free BspExceptionConfig Buffer. If Idt is used, also free the new allocated Idt entries.
+
+  @param[in] BspExceptionConfig  Pointer to BspExceptionConfig buffer.
+**/
+VOID
+FreeBspExceptionConfigBuffer (
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig
   );
 
 /**

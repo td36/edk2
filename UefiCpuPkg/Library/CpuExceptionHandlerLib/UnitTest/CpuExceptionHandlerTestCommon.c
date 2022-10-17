@@ -58,17 +58,25 @@ RestoreRegistersPerCpu (
 
   CpuOriginalRegisterBuffer = (CPU_REGISTER_BUFFER *)Buffer;
 
-  AsmWriteGdtr (&(CpuOriginalRegisterBuffer->OriginalGdtr));
-  AsmWriteIdtr (&(CpuOriginalRegisterBuffer->OriginalIdtr));
-  Tr = CpuOriginalRegisterBuffer->Tr;
-  if ((Tr != 0) && (Tr < CpuOriginalRegisterBuffer->OriginalGdtr.Limit)) {
-    Tss = (IA32_TSS_DESCRIPTOR *)(CpuOriginalRegisterBuffer->OriginalGdtr.Base + Tr);
-    if (Tss->Bits.P == 1) {
-      //
-      // Clear busy bit of TSS before write Tr
-      //
-      Tss->Bits.Type &= 0xD;
-      AsmWriteTr (Tr);
+  if (IsFredEnabled ()) {
+    AsmWriteMsr64 (IA32_FRED_CONFIG, CpuOriginalRegisterBuffer->FredMsrBuffer.FredConfig);
+    AsmWriteMsr64 (IA32_FRED_STKLVLS, CpuOriginalRegisterBuffer->FredMsrBuffer.FredStkLvls);
+    AsmWriteMsr64 (IA32_FRED_RSP1, CpuOriginalRegisterBuffer->FredMsrBuffer.FredRsp1);
+    AsmWriteMsr64 (IA32_FRED_RSP2, CpuOriginalRegisterBuffer->FredMsrBuffer.FredRsp2);
+    AsmWriteMsr64 (IA32_FRED_RSP3, CpuOriginalRegisterBuffer->FredMsrBuffer.FredRsp3);
+  } else {
+    AsmWriteGdtr (&(CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalGdtr));
+    AsmWriteIdtr (&(CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalIdtr));
+    Tr = CpuOriginalRegisterBuffer->IdtRegisterBuffer.Tr;
+    if ((Tr != 0) && (Tr < CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalGdtr.Limit)) {
+      Tss = (IA32_TSS_DESCRIPTOR *)(CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalGdtr.Base + Tr);
+      if (Tss->Bits.P == 1) {
+        //
+        // Clear busy bit of TSS before write Tr
+        //
+        Tss->Bits.Type &= 0xD;
+        AsmWriteTr (Tr);
+      }
     }
   }
 }
@@ -125,13 +133,21 @@ SaveRegisterPerCpu (
 
   CpuOriginalRegisterBuffer = (CPU_REGISTER_BUFFER *)Buffer;
 
-  AsmReadGdtr (&Gdtr);
-  AsmReadIdtr (&Idtr);
-  CpuOriginalRegisterBuffer->OriginalGdtr.Base  = Gdtr.Base;
-  CpuOriginalRegisterBuffer->OriginalGdtr.Limit = Gdtr.Limit;
-  CpuOriginalRegisterBuffer->OriginalIdtr.Base  = Idtr.Base;
-  CpuOriginalRegisterBuffer->OriginalIdtr.Limit = Idtr.Limit;
-  CpuOriginalRegisterBuffer->Tr                 = AsmReadTr ();
+  if (IsFredEnabled ()) {
+    CpuOriginalRegisterBuffer->FredMsrBuffer.FredConfig  = AsmReadMsr64 (IA32_FRED_CONFIG);
+    CpuOriginalRegisterBuffer->FredMsrBuffer.FredStkLvls = AsmReadMsr64 (IA32_FRED_STKLVLS);
+    CpuOriginalRegisterBuffer->FredMsrBuffer.FredRsp1    = AsmReadMsr64 (IA32_FRED_RSP1);
+    CpuOriginalRegisterBuffer->FredMsrBuffer.FredRsp2    = AsmReadMsr64 (IA32_FRED_RSP2);
+    CpuOriginalRegisterBuffer->FredMsrBuffer.FredRsp3    = AsmReadMsr64 (IA32_FRED_RSP3);
+  } else {
+    AsmReadGdtr (&Gdtr);
+    AsmReadIdtr (&Idtr);
+    CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalGdtr.Base  = Gdtr.Base;
+    CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalGdtr.Limit = Gdtr.Limit;
+    CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalIdtr.Base  = Idtr.Base;
+    CpuOriginalRegisterBuffer->IdtRegisterBuffer.OriginalIdtr.Limit = Idtr.Limit;
+    CpuOriginalRegisterBuffer->IdtRegisterBuffer.Tr                 = AsmReadTr ();
+  }
 }
 
 /**
@@ -176,40 +192,85 @@ SaveAllCpuRegisters (
 }
 
 /**
+  Initialize Bsp CpuExceptionHandler.
+
+  @return Pointer to the allocated BspExceptionConfig buffer.
+**/
+BSP_EXCEPTION_CONFIG *
+InitializeBspCpuExceptionHandler (
+  VOID
+  )
+{
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig;
+  EFI_STATUS            Status;
+
+  if (IsFredEnabled ()) {
+    BspExceptionConfig = AllocateZeroPool (sizeof (BSP_EXCEPTION_CONFIG));
+    ASSERT (BspExceptionConfig != NULL);
+    Status                            = InitializeCpuExceptionHandlers (NULL);
+    BspExceptionConfig->BspFredConfig = AsmReadMsr64 (IA32_FRED_CONFIG);
+  } else {
+    BspExceptionConfig = InitializeBspIdt ();
+    Status             = InitializeCpuExceptionHandlers (NULL);
+  }
+
+  ASSERT_EFI_ERROR (Status);
+
+  return BspExceptionConfig;
+}
+
+/**
   Initialize Ap Idt Procedure.
 
-  @param[in] Buffer  Argument of the procedure.
+  @param[in] BspExceptionConfig  Pointer to BSP_EXCEPTION_CONFIG buffer.
 **/
 VOID
 EFIAPI
 InitializeIdtPerAp (
-  IN VOID  *Buffer
+  IN VOID  *BspExceptionConfig
   )
 {
-  AsmWriteIdtr (Buffer);
+  AsmWriteIdtr (&(((BSP_EXCEPTION_CONFIG *)BspExceptionConfig)->BspIdtr));
 }
 
 /**
-  Initialize all Ap Idt.
+  Initialize all Ap FRED MSR.
 
-  @param[in] MpServices MpServices.
-  @param[in] BspIdtr    Pointer to IA32_DESCRIPTOR allocated by Bsp.
+  @param[in] BspExceptionConfig  Pointer to BSP_EXCEPTION_CONFIG buffer.
 **/
 VOID
-InitializeApIdt (
-  MP_SERVICES  MpServices,
-  VOID         *BspIdtr
+EFIAPI
+InitializeFredMsrPerAp (
+  IN VOID  *BspExceptionConfig
   )
 {
-  EFI_STATUS  Status;
+  AsmWriteMsr64 (IA32_FRED_CONFIG, ((BSP_EXCEPTION_CONFIG *)BspExceptionConfig)->BspFredConfig);
+  AsmWriteMsr64 (IA32_FRED_STKLVLS, 0);
+}
 
-  Status = MpServicesUnitTestStartupAllAPs (
-             MpServices,
-             (EFI_AP_PROCEDURE)InitializeIdtPerAp,
-             FALSE,
-             0,
-             BspIdtr
-             );
+/**
+  Initialize Ap CpuExceptionHandler.
+
+  @param[in] MpServices          MpServices.
+  @param[in] BspExceptionConfig  Pointer to Bsp IA32_FRED_CONFIG value or Bsp Idtr buffer.
+**/
+VOID
+InitializeApCpuExceptionHandler (
+  MP_SERVICES           MpServices,
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig
+  )
+{
+  EFI_STATUS        Status;
+  EFI_AP_PROCEDURE  InitializeApRegister;
+
+  InitializeApRegister = IsFredEnabled () ? InitializeFredMsrPerAp : InitializeIdtPerAp;
+  Status               = MpServicesUnitTestStartupAllAPs (
+                           MpServices,
+                           InitializeApRegister,
+                           FALSE,
+                           0,
+                           (VOID *)BspExceptionConfig
+                           );
   ASSERT_EFI_ERROR (Status);
 }
 
@@ -234,15 +295,13 @@ TestRegisterHandlerForNoErrorCodeException (
   IN UNIT_TEST_CONTEXT  Context
   )
 {
-  EFI_STATUS           Status;
-  UINTN                Index;
-  CPU_REGISTER_BUFFER  *CpuOriginalRegisterBuffer;
-  VOID                 *NewIdtr;
+  EFI_STATUS            Status;
+  UINTN                 Index;
+  CPU_REGISTER_BUFFER   *CpuOriginalRegisterBuffer;
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig;
 
   CpuOriginalRegisterBuffer = SaveAllCpuRegisters (NULL, 0);
-  NewIdtr                   = InitializeBspIdt ();
-  Status                    = InitializeCpuExceptionHandlers (NULL);
-  UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
+  BspExceptionConfig        = InitializeBspCpuExceptionHandler ();
 
   for (Index = 0; Index < SPEC_MAX_EXCEPTION_NUM; Index++) {
     //
@@ -264,7 +323,7 @@ TestRegisterHandlerForNoErrorCodeException (
 
   RestoreAllCpuRegisters (NULL, CpuOriginalRegisterBuffer, 0);
   FreePool (CpuOriginalRegisterBuffer);
-  FreePool (NewIdtr);
+  FreeBspExceptionConfigBuffer (BspExceptionConfig);
   return UNIT_TEST_PASSED;
 }
 
@@ -472,17 +531,14 @@ TestRegisterHandlerForGPAndPF (
   IN UNIT_TEST_CONTEXT  Context
   )
 {
-  EFI_STATUS           Status;
-  CPU_REGISTER_BUFFER  *CpuOriginalRegisterBuffer;
-  UINTN                PFAddress;
-  VOID                 *NewIdtr;
+  EFI_STATUS            Status;
+  CPU_REGISTER_BUFFER   *CpuOriginalRegisterBuffer;
+  UINTN                 PFAddress;
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig;
 
   PFAddress                 = 0;
   CpuOriginalRegisterBuffer = SaveAllCpuRegisters (NULL, 0);
-  NewIdtr                   = InitializeBspIdt ();
-  Status                    = InitializeCpuExceptionHandlers (NULL);
-
-  UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
+  BspExceptionConfig        = InitializeBspCpuExceptionHandler ();
 
   //
   // GP exception.
@@ -512,7 +568,7 @@ TestRegisterHandlerForGPAndPF (
 
   RestoreAllCpuRegisters (NULL, CpuOriginalRegisterBuffer, 0);
   FreePool (CpuOriginalRegisterBuffer);
-  FreePool (NewIdtr);
+  FreeBspExceptionConfigBuffer (BspExceptionConfig);
   return UNIT_TEST_PASSED;
 }
 
@@ -537,17 +593,15 @@ TestCpuContextConsistency (
   IN UNIT_TEST_CONTEXT  Context
   )
 {
-  EFI_STATUS           Status;
-  UINTN                Index;
-  CPU_REGISTER_BUFFER  *CpuOriginalRegisterBuffer;
-  UINTN                FaultParameter;
-  VOID                 *NewIdtr;
+  EFI_STATUS            Status;
+  UINTN                 Index;
+  CPU_REGISTER_BUFFER   *CpuOriginalRegisterBuffer;
+  UINTN                 FaultParameter;
+  BSP_EXCEPTION_CONFIG  *BspExceptionConfig;
 
   FaultParameter            = 0;
   CpuOriginalRegisterBuffer = SaveAllCpuRegisters (NULL, 0);
-  NewIdtr                   = InitializeBspIdt ();
-  Status                    = InitializeCpuExceptionHandlers (NULL);
-  UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
+  BspExceptionConfig        = InitializeBspCpuExceptionHandler ();
 
   for (Index = 0; Index < 22; Index++) {
     if (Index == EXCEPT_IA32_PAGE_FAULT) {
@@ -577,7 +631,7 @@ TestCpuContextConsistency (
 
   RestoreAllCpuRegisters (NULL, CpuOriginalRegisterBuffer, 0);
   FreePool (CpuOriginalRegisterBuffer);
-  FreePool (NewIdtr);
+  FreeBspExceptionConfigBuffer (BspExceptionConfig);
   return UNIT_TEST_PASSED;
 }
 
@@ -740,7 +794,7 @@ TestCpuStackGuardInBspAndAp (
   CPU_REGISTER_BUFFER             *CpuOriginalRegisterBuffer;
   UINTN                           Index;
   UINTN                           BspProcessorNum;
-  VOID                            *NewIdtr;
+  BSP_EXCEPTION_CONFIG            *BspExceptionConfig;
   UINTN                           *CpuStackBaseBuffer;
 
   if (!PcdGetBool (PcdCpuStackGuard)) {
@@ -763,10 +817,8 @@ TestCpuStackGuardInBspAndAp (
   // Initialize Bsp and AP Idt.
   // Idt buffer should not be empty or it will hang in MP API.
   //
-  NewIdtr = InitializeBspIdt ();
-  Status  = InitializeCpuExceptionHandlers (NULL);
-  UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
-  InitializeApIdt (MpServices, NewIdtr);
+  BspExceptionConfig = InitializeBspCpuExceptionHandler ();
+  InitializeApCpuExceptionHandler (MpServices, BspExceptionConfig);
 
   //
   // Get BSP and AP original stack base.
@@ -810,7 +862,7 @@ TestCpuStackGuardInBspAndAp (
   RestoreAllCpuRegisters (&MpServices, CpuOriginalRegisterBuffer, BspProcessorNum);
   FreePool (SwitchStackData);
   FreePool (CpuOriginalRegisterBuffer);
-  FreePool (NewIdtr);
+  FreeBspExceptionConfigBuffer (BspExceptionConfig);
 
   return UNIT_TEST_PASSED;
 }

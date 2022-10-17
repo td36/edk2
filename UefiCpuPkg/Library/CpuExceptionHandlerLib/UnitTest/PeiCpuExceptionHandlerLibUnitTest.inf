@@ -48,6 +48,7 @@
   PeiServicesLib
   CpuPageTableLib
   PeiServicesTablePointerLib
+  CpuLib
 
 [Pcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdCpuStackGuard   ## CONSUMES

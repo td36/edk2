@@ -43,6 +43,7 @@
   HobLib
   UefiBootServicesTableLib
   CpuPageTableLib
+  CpuLib
 
 [Guids]
   gEfiHobMemoryAllocStackGuid
