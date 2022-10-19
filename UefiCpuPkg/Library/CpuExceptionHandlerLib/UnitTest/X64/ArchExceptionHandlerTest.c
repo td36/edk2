@@ -159,8 +159,9 @@ CpuStackGuardExceptionHandler (
   UINTN  LocalVariable;
 
   AdjustRipForFaultHandler (ExceptionType, SystemContext);
-  mRspAddress[0] = (UINTN)SystemContext.SystemContextX64->Rsp;
-  mRspAddress[1] = (UINTN)(&LocalVariable);
-
+  if ((mRspAddress[0] == 0) && (mRspAddress[1] == 0)) {
+    mRspAddress[0] = (UINTN)SystemContext.SystemContextX64->Rsp;
+    mRspAddress[1] = (UINTN)(&LocalVariable);
+  }
   return;
 }

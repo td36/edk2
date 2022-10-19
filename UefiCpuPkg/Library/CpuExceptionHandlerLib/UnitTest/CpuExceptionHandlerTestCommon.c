@@ -831,7 +831,7 @@ TestCpuStackGuardInBspAndAp (
   SwitchStackData = InitializeMpExceptionStackSwitchHandlers (MpServices, BspProcessorNum);
   Status          = RegisterCpuInterruptHandler (EXCEPT_IA32_PAGE_FAULT, CpuStackGuardExceptionHandler);
   UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
-  Status = RegisterCpuInterruptHandler (EXCEPT_IA32_DOUBLE_FAULT, AdjustRipForFaultHandler);
+  Status = RegisterCpuInterruptHandler (EXCEPT_IA32_DOUBLE_FAULT, CpuStackGuardExceptionHandler);
   UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
 
   for (Index = 0; Index < mNumberOfProcessors; Index++) {
@@ -853,6 +853,7 @@ TestCpuStackGuardInBspAndAp (
     DEBUG ((DEBUG_INFO, "TestCase4: mRspAddress[0] is 0x%x, mRspAddress[1] is 0x%x\n", mRspAddress[0], mRspAddress[1]));
     UT_ASSERT_TRUE ((mRspAddress[0] >= OriginalStackBase) && (mRspAddress[0] <= (OriginalStackBase + SIZE_4KB)));
     UT_ASSERT_TRUE ((mRspAddress[1] >= NewStackBase) && (mRspAddress[1] < NewStackTop));
+    ZeroMem (mRspAddress, sizeof (mRspAddress));
   }
 
   Status = RegisterCpuInterruptHandler (EXCEPT_IA32_PAGE_FAULT, NULL);

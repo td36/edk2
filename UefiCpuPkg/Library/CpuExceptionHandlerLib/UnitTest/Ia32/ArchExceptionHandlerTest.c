@@ -128,8 +128,15 @@ CpuStackGuardExceptionHandler (
   UINTN  LocalVariable;
 
   AdjustRipForFaultHandler (ExceptionType, SystemContext);
-  mRspAddress[0] = (UINTN)SystemContext.SystemContextIa32->Esp;
-  mRspAddress[1] = (UINTN)(&LocalVariable);
+
+  //
+  // Only first exception happens in CpuStackGuard test case should write to mRspAddress.
+  // It is possible that both PF and DF are triggered in this test case.(IA32 PEIM)
+  //
+  if ((mRspAddress[0] == 0) && (mRspAddress[1] == 0)) {
+    mRspAddress[0] = (UINTN)SystemContext.SystemContextIa32->Esp;
+    mRspAddress[1] = (UINTN)(&LocalVariable);
+  }
 
   return;
 }
