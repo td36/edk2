@@ -72,7 +72,7 @@ jobs:
           OVMF_IA32X64_DEBUG:
             Build.File: "$(package)/PlatformCI/PlatformBuild.py"
             Build.Arch: "IA32,X64"
-            Build.Flags: ""
+            Build.Flags: "ShellUnitTestList=MdeModulePkg/Application/HelloWorld/HelloWorld.inf;"
             Build.Target: "DEBUG"
             Run.Flags: $(run_flags)
             Run: $(should_run)
