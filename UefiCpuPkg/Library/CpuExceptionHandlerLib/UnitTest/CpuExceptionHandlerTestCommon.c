@@ -548,6 +548,7 @@ TestCpuContextConsistency (
   NewIdtr                   = InitializeBspIdt ();
   Status                    = InitializeCpuExceptionHandlers (NULL);
   UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
+  //UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
 
   for (Index = 0; Index < 22; Index++) {
     if (Index == EXCEPT_IA32_PAGE_FAULT) {
