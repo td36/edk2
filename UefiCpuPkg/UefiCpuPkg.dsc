@@ -111,6 +111,8 @@
 [LibraryClasses.common.UEFI_APPLICATION]
   UefiApplicationEntryPoint|MdePkg/Library/UefiApplicationEntryPoint/UefiApplicationEntryPoint.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+  CpuExceptionHandlerLib|UefiCpuPkg/Library/CpuExceptionHandlerLib/DxeCpuExceptionHandlerLib.inf
+  HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
 
 #
 # Drivers/Libraries within this package
@@ -186,6 +188,7 @@
 
 [Components.X64]
   UefiCpuPkg/Library/CpuExceptionHandlerLib/UnitTest/DxeCpuExceptionHandlerLibUnitTest.inf
+  UefiCpuPkg/Library/CpuExceptionHandlerLib/UnitTest/ShellCpuExceptionHandlerLibUnitTest.inf
 
 [BuildOptions]
   *_*_*_CC_FLAGS = -D DISABLE_NEW_DEPRECATED_INTERFACES

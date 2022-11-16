@@ -399,7 +399,7 @@ goto end
 
   %PYTHON_COMMAND% -c "import edk2basetools" >NUL 2>NUL
   if %ERRORLEVEL% EQU 0 (
-    goto use_pip_basetools
+    goto use_builtin_basetools
   ) else (
     REM reset ERRORLEVEL
     type nul>nul

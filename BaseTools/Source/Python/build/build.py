@@ -934,6 +934,7 @@ class Build():
     #   This method will parse target.txt and get the build configurations.
     #
     def LoadConfiguration(self):
+        print("I am td")
 
         # if no ARCH given in command line, get it from target.txt
         if not self.ArchList:

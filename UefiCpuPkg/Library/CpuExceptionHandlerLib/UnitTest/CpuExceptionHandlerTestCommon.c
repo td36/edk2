@@ -487,6 +487,7 @@ TestRegisterHandlerForGPAndPF (
   //
   // GP exception.
   //
+  /*
   DEBUG ((DEBUG_INFO, "TestCase2: ExceptionType is %d\n", EXCEPT_IA32_GP_FAULT));
   Status = RegisterCpuInterruptHandler (EXCEPT_IA32_GP_FAULT, AdjustRipForFaultHandler);
   UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
@@ -495,7 +496,7 @@ TestRegisterHandlerForGPAndPF (
   UT_ASSERT_EQUAL (mExceptionType, EXCEPT_IA32_GP_FAULT);
   Status = RegisterCpuInterruptHandler (EXCEPT_IA32_GP_FAULT, NULL);
   UT_ASSERT_EQUAL (Status, EFI_SUCCESS);
-
+  */
   //
   // PF exception.
   //
@@ -557,6 +558,7 @@ TestCpuContextConsistency (
       }
     } else if (Index == EXCEPT_IA32_GP_FAULT) {
       FaultParameter = CR4_RESERVED_BIT;
+      continue;
     } else {
       if ((mErrorCodeExceptionFlag & (1 << Index)) != 0) {
         continue;
