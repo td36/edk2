@@ -21,6 +21,7 @@ jobs:
       vm_image: 'windows-2019'
       should_run: true
       run_flags: "MAKE_STARTUP_NSH=TRUE QEMU_HEADLESS=TRUE"
+      unit_test_list: ''
 
     #Use matrix to speed up the build process
     strategy:
@@ -76,6 +77,14 @@ jobs:
             Build.Target: "DEBUG"
             Run.Flags: $(run_flags)
             Run: $(should_run)
+          OVMF_IA32X64_DEBUG_UNIT_TEST:
+            Build.File: "$(package)/PlatformCI/PlatformBuild.py"
+            Build.Arch: "IA32,X64"
+            Build.Flags: ""
+            Build.Target: "DEBUG"
+            Run.Flags: $(run_flags)
+            Run: $(should_run)
+            UnitTest: '-u MdeModulePkg/Application/HelloWorld/HelloWorld.inf:MdeModulePkg/MdeModulePkg.dsc,UefiCpuPkg/Library/CpuExceptionHandlerLib/UnitTest/ShellCpuExceptionHandlerLibUnitTest.inf:UefiCpuPkg/UefiCpuPkg.dsc'
           OVMF_IA32X64_RELEASE:
             Build.File: "$(package)/PlatformCI/PlatformBuild.py"
             Build.Arch: "IA32,X64"
@@ -133,6 +142,7 @@ jobs:
         build_file: $(Build.File)
         build_flags: $(Build.Flags)
         run_flags: $(Run.Flags)
+        unit_test_list: $(UnitTest)
         extra_install_step:
         - powershell: choco install qemu --version=2021.5.5; Write-Host "##vso[task.prependpath]c:\Program Files\qemu"
           displayName: Install QEMU and Set QEMU on path # friendly name displayed in the UI
