@@ -210,9 +210,16 @@ class PlatformBuilder( UefiBuilder, BuildSettingsManager):
         else:
             args += " -pflash " + os.path.join(OutputPath_FV, "OVMF.fd")    # path to firmware
 
-
         if (self.env.GetValue("MAKE_STARTUP_NSH").upper() == "TRUE"):
             f = open(os.path.join(VirtualDrive, "startup.nsh"), "w")
+            try:
+                if CommonPlatform.RunShellUnitTest:
+                    # When RunShellUnitTest is True, write all efi files name into startup.nsh.
+                    CommonPlatform.WriteEfiToStartup(VirtualDrive, f)
+                    # Output UnitTest log into ShellUnitTestLog.
+                    args += " -serial file:{}".format(CommonPlatform.ShellUnitTestLog)
+            except:
+                pass
             f.write("BOOT SUCCESS !!! \n")
             ## add commands here
             f.write("reset -s\n")
