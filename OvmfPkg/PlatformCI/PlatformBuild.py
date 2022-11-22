@@ -8,7 +8,6 @@ import os
 import sys
 import shutil
 import logging
-from edk2toollib.utility_functions import RunCmd
 from edk2toolext.environment import shell_environment
 from edk2toolext.environment.multiple_workspace import MultipleWorkspace
 
@@ -29,17 +28,10 @@ class CommonPlatform():
     Scopes = ('ovmf', 'edk2-build')
     WorkspaceRoot = os.path.realpath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-
-    def __init__(self):
-        '''  When the -u and -p input is not null, the self.PackagesSupported and self.UnitTestModuleList will be updated to following format:
-        self.PackagesSupported  = ("UefiCpuPkg", "MdeModulePkg")
-        self.UnitTestModuleList = {'UefiCpuPkg/Library/CpuExceptionHandlerLib/UnitTest/DxeCpuExceptionHandlerLibUnitTest.inf':'UefiCpuPkg.dsc',
-                                   'MdeModulePkg/Application/HelloWorld/HelloWorld.inf'                                      :'MdeModulePkg.dsc'}
-        '''
-        self.PackagesSupported  = CommonPlatform.PackagesSupported
-        self.UnitTestModuleList = {}
-        self.RunShellUnitTest   = False
-        self.ShellUnitTestLog   = None
+    # Support build and run Shell Unit Test modules
+    UnitTestModuleList = {}
+    RunShellUnitTest   = False
+    ShellUnitTestLog   = ''
 
     @classmethod
     def GetDscName(cls, ArchCsv: str) -> str:
@@ -55,20 +47,22 @@ class CommonPlatform():
         dsc += ".dsc"
         return dsc
 
-    def UpdatePackagesSupported(self, args):
+    @classmethod
+    def UpdatePackagesSupported(cls, ShellUnitTestList):
         ''' Update PackagesSupported by -u ShellUnitTestList from cmd line. '''
-        if not args.ShellUnitTestList:
+        if not ShellUnitTestList:
             return
-        UnitTestModuleList = ','.join(args.ShellUnitTestList).split(",")
+        UnitTestModuleList = ','.join(ShellUnitTestList).split(",")
         PackagesSupported = []
         for KeyValue in UnitTestModuleList:
             PkgName = KeyValue.split("Pkg")[0] + 'Pkg'
             if PkgName not in PackagesSupported:
                 PackagesSupported.append(PkgName)
-        self.PackagesSupported = tuple(PackagesSupported)
-        print('PackagesSupported for UnitTest is {}'.format(self.PackagesSupported))
+        cls.PackagesSupported = tuple(PackagesSupported)
+        print('PackagesSupported for UnitTest is {}'.format(cls.PackagesSupported))
 
-    def UpdateUnitTestConfig(self, args):
+    @classmethod
+    def UpdateUnitTestConfig(cls, args):
         ''' Update UnitTest config by -u ShellUnitTestList and -p PkgsToBuildForUT from cmd line.
             ShellUnitTestList is in this format: {module1:dsc1, module2:dsc2, module3:dsc2...}.
             Only the modules which are in the PkgsToBuildForUT list are added into self.UnitTestModuleList.
@@ -81,7 +75,7 @@ class CommonPlatform():
             for KeyValue in UnitTestModuleList:
                 UnitTestPath = os.path.normpath(KeyValue.split(":")[0])
                 DscPath      = os.path.normpath(KeyValue.split(":")[1])
-                self.UnitTestModuleList[UnitTestPath] = DscPath
+                cls.UnitTestModuleList[UnitTestPath] = DscPath
         else:
             PkgsToBuildForUT = ','.join(args.PkgsToBuildForUT).split(',')
             for KeyValue in UnitTestModuleList:
@@ -89,25 +83,24 @@ class CommonPlatform():
                 DscPath      = os.path.normpath(KeyValue.split(":")[1])
                 PkgName      = UnitTestPath.split("Pkg")[0] + 'Pkg'
                 if PkgName in PkgsToBuildForUT:
-                    self.UnitTestModuleList[UnitTestPath] = DscPath
-
-        self.RunShellUnitTest = True
-        self.ShellUnitTestLog = os.path.join(PlatformBuilder.GetWorkspaceRoot(self), 'Build',
-        "BUILDLOG_{0}_UnitTest.txt".format(PlatformBuilder.GetName(self)))
-        print('UnitTestModuleList is {}'.format(self.UnitTestModuleList))
+                    cls.UnitTestModuleList[UnitTestPath] = DscPath
+        if len(cls.UnitTestModuleList) > 0:
+            cls.RunShellUnitTest = True
+            cls.ShellUnitTestLog = os.path.join(cls.WorkspaceRoot, 'Build', "BUILDLOG_UnitTest.txt")
+            print('UnitTestModuleList is {}'.format(cls.UnitTestModuleList))
 
     def BuildUnitTest(self):
         ''' Build specific DSC for modules in UnitTestModuleList '''
         self.env = shell_environment.GetBuildVars()
-        self.ws  = self.WorkspaceRoot
+        self.ws  = PlatformBuilder.GetWorkspaceRoot(self)
         self.mws = MultipleWorkspace()
         self.pp  = ''
         VirtualDrive = os.path.join(self.env.GetValue("BUILD_OUTPUT_BASE"), "VirtualDrive")
         os.makedirs(VirtualDrive, exist_ok=True)
 
         # DSC by self.GetDscName() should have been built in BUILD process.
-        BuiltDsc = [self.GetDscName(",".join(self.env.GetValue("TARGET_ARCH").split(' ')))]
-        for UnitTestPath, DscPath in self.UnitTestModuleList.items():
+        BuiltDsc = [CommonPlatform.GetDscName(",".join(self.env.GetValue("TARGET_ARCH").split(' ')))]
+        for UnitTestPath, DscPath in CommonPlatform.UnitTestModuleList.items():
             if DscPath not in BuiltDsc:
                 ModuleName = UnitTestPath.split('.inf')[0].rsplit('\\')[-1]
                 logging.info('Build {0} for {1}'.format(DscPath, ModuleName))
@@ -134,19 +127,20 @@ class CommonPlatform():
             shutil.copy(EfiPath, VirtualDrive)
         return 0
 
-    def WriteEfiToStartup(self, EfiFolder, FileObj):
+    @staticmethod
+    def WriteEfiToStartup(EfiFolder, FileObj):
         ''' Write all the .efi files' name in VirtualDrive into Startup.nsh '''
         for root,dirs,files in os.walk(EfiFolder):
             for file in files:
                 if os.path.splitext(file)[1] == '.efi':
                     FileObj.write("{0} \n".format(file))
 
-    def CheckUnitTestLog(self):
+    @classmethod
+    def CheckUnitTestLog(cls):
         ''' Check the boot log for UnitTest '''
-        LogPath     = self.ShellUnitTestLog
-        file        = open(LogPath, "r")
+        file        = open(cls.ShellUnitTestLog, "r")
         fileContent = file.readlines()
-        logging.info('Check the UnitTest boot log:{0}'.format(LogPath))
+        logging.info('Check the UnitTest boot log:{0}'.format(cls.ShellUnitTestLog))
         for Index in range(len(fileContent)):
             if 'FAILURE MESSAGE:' in fileContent[Index]:
                 if fileContent[Index + 1].strip() != '':
@@ -155,63 +149,4 @@ class CommonPlatform():
         return 0
 
 import PlatformBuildLib
-CommonPlatformSupportUT = CommonPlatform()
-PlatformBuildLib.CommonPlatform = CommonPlatformSupportUT
-
-class UnitTestSettingsManager(SettingsManager):
-    def AddCommandLineOptions(self, parserObj):
-        parserObj.add_argument('-u', '--UnitTest', dest='ShellUnitTestList', type=str,
-                               help='Optional - Key:Value that contains Shell UnitTest list and corresponding DscPath you want to check.'
-                               'Can list multiple by doing -u <UTPath1:DscPath1>,<UTPath2:DscPath2> or -p <UTPath3:DscPath3> -p <UTPath4:DscPath4>',
-                               action="append", default=None)
-
-    def RetrieveCommandLineOptions(self, args):
-        CommonPlatformSupportUT.UpdatePackagesSupported(args)
-
-    def GetPlatformDscAndConfig(self) -> tuple:
-        ''' If a platform desires to provide its DSC then Policy 4 will evaluate if
-        any of the changes will be built in the dsc.
-
-        The tuple should be (<workspace relative path to dsc file>, <input dictionary of dsc key value pairs>)
-        This rule can only be applied when PackagesSupported only contains OvmfPkg.
-        '''
-        if (len(CommonPlatformSupportUT.PackagesSupported) == 1) and (CommonPlatformSupportUT.PackagesSupported[0] == 'OvmfPkg'):
-            super().GetPlatformDscAndConfig()
-        return None
-
-class UnitTestPlatformBuilder(PlatformBuilder):
-    def AddCommandLineOptions(self, parserObj):
-        ''' Add command line options to the argparser '''
-        super().AddCommandLineOptions(parserObj)
-        parserObj.add_argument('-p', '--pkg', '--pkg-dir', dest='PkgsToBuildForUT', type=str,
-                               help='Optional - Package list you want to build for UnitTest.efi. (workspace relative).'
-                               'Can list multiple by doing -p <pkg1>,<pkg2> or -p <pkg3> -p <pkg4>.If no valid input -p, build and run all -u UnitTest',
-                               action="append", default=None)
-        parserObj.add_argument('-u', '--UnitTest', dest='ShellUnitTestList', type=str,
-                               help='Optional - Key:Value that contains Shell UnitTest list and corresponding DscPath you want to check.'
-                               'Can list multiple by doing -u <UTPath1:DscPath1>,<UTPath2:DscPath2> or -p <UTPath3:DscPath3> -p <UTPath4:DscPath4>',
-                               action="append", default=None)
-
-    def RetrieveCommandLineOptions(self, args):
-        '''  Retrieve command line options from the argparser '''
-        super().RetrieveCommandLineOptions(args)
-        CommonPlatformSupportUT.UpdateUnitTestConfig(args)
-
-    def PlatformPostBuild(self):
-        ''' Build specific Pkg in command line for UnitTest modules.'''
-        if CommonPlatformSupportUT.RunShellUnitTest:
-            ret = CommonPlatformSupportUT.BuildUnitTest()
-            if ret !=0:
-                logging.critical("Build UnitTest failed")
-                return ret
-        return 0
-
-    def FlashRomImage(self):
-        ret = super().FlashRomImage()
-        if CommonPlatformSupportUT.RunShellUnitTest and ret == 0:
-            # Check the UnitTest boot log.
-            UnitTestResult = CommonPlatformSupportUT.CheckUnitTestLog()
-            if (UnitTestResult):
-                logging.info("UnitTest failed with this FAILURE MESSAGE:\n{}".format(UnitTestResult))
-                return UnitTestResult
-        return ret
+PlatformBuildLib.CommonPlatform = CommonPlatform
