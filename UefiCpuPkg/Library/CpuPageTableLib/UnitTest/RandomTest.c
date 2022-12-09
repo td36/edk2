@@ -695,7 +695,8 @@ SingleMapEntryTest (
                           MapEntrys->Maps[MapsIndex].LinearAddress,
                           MapEntrys->Maps[MapsIndex].Length,
                           &MapEntrys->Maps[MapsIndex].Attribute,
-                          &MapEntrys->Maps[MapsIndex].Mask
+                          &MapEntrys->Maps[MapsIndex].Mask,
+                          NULL
                           );
 
   Attribute = &MapEntrys->Maps[MapsIndex].Attribute;
@@ -755,7 +756,8 @@ SingleMapEntryTest (
                MapEntrys->Maps[MapsIndex].LinearAddress,
                MapEntrys->Maps[MapsIndex].Length,
                &MapEntrys->Maps[MapsIndex].Attribute,
-               &MapEntrys->Maps[MapsIndex].Mask
+               &MapEntrys->Maps[MapsIndex].Mask,
+               NULL
                );
   }
 

@@ -273,6 +273,7 @@ IsAttributesAndMaskValidForNonPresentEntry (
                                     Page table entries that map the linear address range are reset to 0 before set to the new attribute
                                     when a new physical base address is set.
   @param[in]      Mask              The mask used for attribute. The corresponding field in Attribute is ignored if that in Mask is 0.
+  @param[out]     IsModified        TRUE means page table is modified. FALSE means page table is not modified.
 
   @retval RETURN_SUCCESS            PageTable is created/updated successfully.
 **/
@@ -289,7 +290,8 @@ PageTableLibMapInLevel (
   IN     UINT64              Length,
   IN     UINT64              Offset,
   IN     IA32_MAP_ATTRIBUTE  *Attribute,
-  IN     IA32_MAP_ATTRIBUTE  *Mask
+  IN     IA32_MAP_ATTRIBUTE  *Mask,
+  OUT    BOOLEAN             *IsModified
   )
 {
   RETURN_STATUS       Status;
@@ -313,6 +315,8 @@ PageTableLibMapInLevel (
   IA32_MAP_ATTRIBUTE  ChildMask;
   IA32_MAP_ATTRIBUTE  CurrentMask;
   IA32_MAP_ATTRIBUTE  LocalParentAttribute;
+  IA32_PAGING_ENTRY   OriginalParentPagingEntry;
+  IA32_PAGING_ENTRY   OriginalCurrentPagingEntry;
 
   ASSERT (Level != 0);
   ASSERT ((Attribute != NULL) && (Mask != NULL));
@@ -325,8 +329,9 @@ PageTableLibMapInLevel (
   NopAttribute.Bits.ReadWrite      = 1;
   NopAttribute.Bits.UserSupervisor = 1;
 
-  LocalParentAttribute.Uint64 = ParentAttribute->Uint64;
-  ParentAttribute             = &LocalParentAttribute;
+  LocalParentAttribute.Uint64      = ParentAttribute->Uint64;
+  ParentAttribute                  = &LocalParentAttribute;
+  OriginalParentPagingEntry.Uint64 = ParentPagingEntry->Uint64;
 
   //
   // RegionLength: 256T (1 << 48) 512G (1 << 39), 1G (1 << 30), 2M (1 << 21) or 4K (1 << 12).
@@ -556,7 +561,15 @@ PageTableLibMapInLevel (
           ASSERT (CreateNew || (Mask->Bits.Nx == 0) || (Attribute->Bits.Nx == 1));
         }
 
+        //
+        // Check if any leaf PagingEntry is modified.
+        //
+        OriginalCurrentPagingEntry.Uint64 = CurrentPagingEntry->Uint64;
         PageTableLibSetPle (Level, CurrentPagingEntry, Offset, Attribute, &CurrentMask);
+
+        if (OriginalCurrentPagingEntry.Uint64 != CurrentPagingEntry->Uint64) {
+          *IsModified = TRUE;
+        }
       }
     } else {
       //
@@ -579,7 +592,8 @@ PageTableLibMapInLevel (
                  Length,
                  Offset,
                  Attribute,
-                 Mask
+                 Mask,
+                 IsModified
                  );
       if (RETURN_ERROR (Status)) {
         return Status;
@@ -589,6 +603,14 @@ PageTableLibMapInLevel (
     Offset      += SubLength;
     RegionStart += RegionLength;
     Index++;
+  }
+
+  //
+  // Check if ParentPagingEntry entry is modified here is enough. Except the changes happen in leaf PagingEntry during
+  // the while loop, if there is any other change happens in page table, the ParentPagingEntry must has been modified.
+  //
+  if (OriginalParentPagingEntry.Uint64 != ParentPagingEntry->Uint64) {
+    *IsModified = TRUE;
   }
 
   return RETURN_SUCCESS;
@@ -611,6 +633,7 @@ PageTableLibMapInLevel (
                                  Page table entries that map the linear address range are reset to 0 before set to the new attribute
                                  when a new physical base address is set.
   @param[in]      Mask           The mask used for attribute. The corresponding field in Attribute is ignored if that in Mask is 0.
+  @param[out]     IsModified     TRUE means page table is modified. FALSE means page table is not modified.
 
   @retval RETURN_UNSUPPORTED        PagingMode is not supported.
   @retval RETURN_INVALID_PARAMETER  PageTable, BufferSize, Attribute or Mask is NULL.
@@ -630,7 +653,8 @@ PageTableMap (
   IN     UINT64              LinearAddress,
   IN     UINT64              Length,
   IN     IA32_MAP_ATTRIBUTE  *Attribute,
-  IN     IA32_MAP_ATTRIBUTE  *Mask
+  IN     IA32_MAP_ATTRIBUTE  *Mask,
+  OUT    BOOLEAN             *IsModified   OPTIONAL
   )
 {
   RETURN_STATUS       Status;
@@ -640,6 +664,7 @@ PageTableMap (
   IA32_PAGE_LEVEL     MaxLevel;
   IA32_PAGE_LEVEL     MaxLeafLevel;
   IA32_MAP_ATTRIBUTE  ParentAttribute;
+  BOOLEAN             LocalIsModified;
 
   if (Length == 0) {
     return RETURN_SUCCESS;
@@ -702,6 +727,10 @@ PageTableMap (
     TopPagingEntry.Pce.Nx             = 0;
   }
 
+  if (IsModified != NULL) {
+    *IsModified = FALSE;
+  }
+
   ParentAttribute.Uint64                    = 0;
   ParentAttribute.Bits.PageTableBaseAddress = 1;
   ParentAttribute.Bits.Present              = 1;
@@ -725,7 +754,8 @@ PageTableMap (
                    Length,
                    0,
                    Attribute,
-                   Mask
+                   Mask,
+                   &LocalIsModified
                    );
   if (RETURN_ERROR (Status)) {
     return Status;
@@ -742,6 +772,7 @@ PageTableMap (
     return RETURN_INVALID_PARAMETER;
   }
 
+  LocalIsModified = FALSE;
   //
   // Update the page table when the supplied buffer is sufficient.
   //
@@ -757,8 +788,13 @@ PageTableMap (
              Length,
              0,
              Attribute,
-             Mask
+             Mask,
+             &LocalIsModified
              );
+  if (IsModified != NULL) {
+    *IsModified = LocalIsModified;
+  }
+
   if (!RETURN_ERROR (Status)) {
     *PageTable = (UINTN)(TopPagingEntry.Uintn & IA32_PE_BASE_ADDRESS_MASK_40);
   }
