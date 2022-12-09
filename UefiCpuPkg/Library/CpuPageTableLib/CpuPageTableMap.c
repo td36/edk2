@@ -235,6 +235,7 @@ PageTableLibSetPnle (
                                     Page table entries that map the linear address range are reset to 0 before set to the new attribute
                                     when a new physical base address is set.
   @param[in]      Mask              The mask used for attribute. The corresponding field in Attribute is ignored if that in Mask is 0.
+  @param[out]     IsModified        TRUE means page table modified. FALSE means page table not modified.
 
   @retval RETURN_SUCCESS            PageTable is created/updated successfully.
 **/
@@ -251,7 +252,8 @@ PageTableLibMapInLevel (
   IN     UINT64              Length,
   IN     UINT64              Offset,
   IN     IA32_MAP_ATTRIBUTE  *Attribute,
-  IN     IA32_MAP_ATTRIBUTE  *Mask
+  IN     IA32_MAP_ATTRIBUTE  *Mask,
+  OUT    BOOLEAN             *IsModified   OPTIONAL
   )
 {
   RETURN_STATUS       Status;
@@ -309,6 +311,9 @@ PageTableLibMapInLevel (
       // Set default attribute bits for PML5E/PML4E/PDPTE/PDE.
       //
       PageTableLibSetPnle (&ParentPagingEntry->Pnle, &NopAttribute, &AllOneMask);
+      if (IsModified != NULL) {
+        *IsModified = TRUE;
+      }
     } else {
       //
       // Just make sure Present and MustBeZero (PageSize) bits are accurate.
@@ -340,6 +345,10 @@ PageTableLibMapInLevel (
     *BufferSize -= SIZE_4KB;
     PageTableLibSetPle (Level, &OneOfPagingEntry, 0, &PleBAttribute, &AllOneMask);
     if (Modify) {
+      if (IsModified != NULL) {
+        *IsModified = TRUE;
+      }
+
       //
       // Create 512 child-level entries that map to 2M/4K.
       //
@@ -377,6 +386,10 @@ PageTableLibMapInLevel (
     //            we need to change PDPTE[0].Nx = 0 and let all PDE[0-255].Nx = 1 in this step.
     if ((ParentPagingEntry->Pnle.Bits.Present == 0) && (Mask->Bits.Present == 1) && (Attribute->Bits.Present == 1)) {
       if (Modify) {
+        if (IsModified != NULL) {
+          *IsModified = TRUE;
+        }
+
         ParentPagingEntry->Pnle.Bits.Present = 1;
       }
 
@@ -386,6 +399,10 @@ PageTableLibMapInLevel (
 
     if ((ParentPagingEntry->Pnle.Bits.ReadWrite == 0) && (Mask->Bits.ReadWrite == 1) && (Attribute->Bits.ReadWrite == 1)) {
       if (Modify) {
+        if (IsModified != NULL) {
+          *IsModified = TRUE;
+        }
+
         ParentPagingEntry->Pnle.Bits.ReadWrite = 1;
       }
 
@@ -395,6 +412,10 @@ PageTableLibMapInLevel (
 
     if ((ParentPagingEntry->Pnle.Bits.UserSupervisor == 0) && (Mask->Bits.UserSupervisor == 1) && (Attribute->Bits.UserSupervisor == 1)) {
       if (Modify) {
+        if (IsModified != NULL) {
+          *IsModified = TRUE;
+        }
+
         ParentPagingEntry->Pnle.Bits.UserSupervisor = 1;
       }
 
@@ -404,6 +425,10 @@ PageTableLibMapInLevel (
 
     if ((ParentPagingEntry->Pnle.Bits.Nx == 1) && (Mask->Bits.Nx == 1) && (Attribute->Bits.Nx == 0)) {
       if (Modify) {
+        if (IsModified != NULL) {
+          *IsModified = TRUE;
+        }
+
         ParentPagingEntry->Pnle.Bits.Nx = 0;
       }
 
@@ -413,6 +438,10 @@ PageTableLibMapInLevel (
 
     if (ChildMask.Uint64 != 0) {
       if (Modify) {
+        if (IsModified != NULL) {
+          *IsModified = TRUE;
+        }
+
         //
         // Update child entries to use restrictive attribute inherited from parent.
         // e.g.: Set PDE[0-255].ReadWrite = 0
@@ -463,6 +492,10 @@ PageTableLibMapInLevel (
       // Create one entry mapping the entire region (1G, 2M or 4K).
       //
       if (Modify) {
+        if (IsModified != NULL) {
+          *IsModified = TRUE;
+        }
+
         //
         // When the inheritable attributes in parent entry could override the child attributes,
         // e.g.: Present/ReadWrite/UserSupervisor is 0 in parent entry, or
@@ -514,7 +547,8 @@ PageTableLibMapInLevel (
                  Length,
                  Offset,
                  Attribute,
-                 Mask
+                 Mask,
+                 IsModified
                  );
       if (RETURN_ERROR (Status)) {
         return Status;
@@ -546,6 +580,7 @@ PageTableLibMapInLevel (
                                  Page table entries that map the linear address range are reset to 0 before set to the new attribute
                                  when a new physical base address is set.
   @param[in]      Mask           The mask used for attribute. The corresponding field in Attribute is ignored if that in Mask is 0.
+  @param[out]     IsModified     TRUE means page table modified. FALSE means page table not modified.
 
   @retval RETURN_UNSUPPORTED        PagingMode is not supported.
   @retval RETURN_INVALID_PARAMETER  PageTable, BufferSize, Attribute or Mask is NULL.
@@ -565,7 +600,8 @@ PageTableMap (
   IN     UINT64              LinearAddress,
   IN     UINT64              Length,
   IN     IA32_MAP_ATTRIBUTE  *Attribute,
-  IN     IA32_MAP_ATTRIBUTE  *Mask
+  IN     IA32_MAP_ATTRIBUTE  *Mask,
+  OUT    BOOLEAN             *IsModified   OPTIONAL
   )
 {
   RETURN_STATUS       Status;
@@ -603,6 +639,10 @@ PageTableMap (
 
   if ((*BufferSize != 0) && (Buffer == NULL)) {
     return RETURN_INVALID_PARAMETER;
+  }
+
+  if (IsModified != NULL) {
+    *IsModified = FALSE;
   }
 
   MaxLeafLevel     = (IA32_PAGE_LEVEL)(UINT8)PagingMode;
@@ -647,7 +687,8 @@ PageTableMap (
                    Length,
                    0,
                    Attribute,
-                   Mask
+                   Mask,
+                   NULL
                    );
   if (RETURN_ERROR (Status)) {
     return Status;
@@ -679,7 +720,8 @@ PageTableMap (
              Length,
              0,
              Attribute,
-             Mask
+             Mask,
+             IsModified
              );
   if (!RETURN_ERROR (Status)) {
     if (PagingMode == PagingPae) {
