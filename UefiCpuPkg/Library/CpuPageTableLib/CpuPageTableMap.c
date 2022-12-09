@@ -651,15 +651,16 @@ PageTableMap (
   IA32_PAGE_LEVEL     MaxLeafLevel;
   IA32_MAP_ATTRIBUTE  ParentAttribute;
   BOOLEAN             LocalIsModified;
+  UINTN               Index;
+  IA32_PAGING_ENTRY   *PagingEntry;
 
   if (Length == 0) {
     return RETURN_SUCCESS;
   }
 
-  if ((PagingMode == Paging32bit) || (PagingMode == PagingPae) || (PagingMode >= PagingModeMax)) {
+  if ((PagingMode == Paging32bit) || (PagingMode >= PagingModeMax)) {
     //
     // 32bit paging is never supported.
-    // PAE paging will be supported later.
     //
     return RETURN_UNSUPPORTED;
   }
@@ -696,11 +697,11 @@ PageTableMap (
 
   MaxLeafLevel     = (IA32_PAGE_LEVEL)(UINT8)PagingMode;
   MaxLevel         = (IA32_PAGE_LEVEL)(UINT8)(PagingMode >> 8);
-  MaxLinearAddress = LShiftU64 (1, 12 + MaxLevel * 9);
+  MaxLinearAddress = (PagingMode == PagingPae) ? LShiftU64 (1, 32) : LShiftU64 (1, 12 + MaxLevel * 9);
 
   if ((LinearAddress > MaxLinearAddress) || (Length > MaxLinearAddress - LinearAddress)) {
     //
-    // Maximum linear address is (1 << 48) or (1 << 57)
+    // Maximum linear address is (1 << 32), (1 << 48) or (1 << 57)
     //
     return RETURN_INVALID_PARAMETER;
   }
@@ -782,6 +783,17 @@ PageTableMap (
   }
 
   if (!RETURN_ERROR (Status)) {
+    if (PagingMode == PagingPae) {
+      //
+      // These MustBeZero fields are treated as RW and other attributes by the common map logic. So they might be set to 1.
+      //
+      PagingEntry = (IA32_PAGING_ENTRY *)(UINTN)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (&TopPagingEntry.Pnle);
+      for (Index = 0; Index < 4; Index++) {
+        PagingEntry[Index].PdptePae.Bits.MustBeZero  = 0;
+        PagingEntry[Index].PdptePae.Bits.MustBeZero2 = 0;
+      }
+    }
+
     *PageTable = (UINTN)(TopPagingEntry.Uintn & IA32_PE_BASE_ADDRESS_MASK_40);
   }
 
