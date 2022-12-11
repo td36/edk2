@@ -265,11 +265,60 @@ extern UINTN                 mNumberOfCpus;
 extern EFI_SMM_CPU_PROTOCOL  mSmmCpu;
 extern EFI_MM_MP_PROTOCOL    mSmmMp;
 extern BOOLEAN               m5LevelPagingNeeded;
+extern PAGING_MODE           mPagingMode;
 
 ///
 /// The mode of the CPU at the time an SMI occurs
 ///
 extern UINT8  mSmmSaveStateRegisterLma;
+
+extern BOOLEAN          mSmmReadyToLock;
+extern PAGE_TABLE_POOL  *mPageTablePool;
+
+#define PAGE_TABLE_POOL_ALIGNMENT   BASE_128KB
+#define PAGE_TABLE_POOL_UNIT_SIZE   BASE_128KB
+#define PAGE_TABLE_POOL_UNIT_PAGES  EFI_SIZE_TO_PAGES (PAGE_TABLE_POOL_UNIT_SIZE)
+#define PAGE_TABLE_POOL_ALIGN_MASK  \
+  (~(EFI_PHYSICAL_ADDRESS)(PAGE_TABLE_POOL_ALIGNMENT - 1))
+
+typedef struct {
+  VOID     *NextPool;
+  UINTN    Offset;
+  UINTN    FreePages;
+} PAGE_TABLE_POOL;
+
+/**
+  Initialize a buffer pool for page table use only.
+
+  To reduce the potential split operation on page table, the pages reserved for
+  page table should be allocated in the times of PAGE_TABLE_POOL_UNIT_PAGES and
+  at the boundary of PAGE_TABLE_POOL_ALIGNMENT. So the page pool is always
+  initialized with number of pages greater than or equal to the given PoolPages.
+
+  Once the pages in the pool are used up, this method should be called again to
+  reserve at least another PAGE_TABLE_POOL_UNIT_PAGES. But usually this won't
+  happen in practice.
+
+  @param PoolPages  The least page number of the pool to be created.
+
+  @retval TRUE    The pool is initialized successfully.
+  @retval FALSE   The memory is out of resource.
+**/
+BOOLEAN
+InitializePageTablePool (
+  IN UINTN  PoolPages
+  );
+
+/**
+  Return whether memory used by SMM page table should be set as Read Only.
+
+  @retval TRUE  Need to set SMM page table as Read Only.
+  @retval FALSE Do not set SMM page table as Read Only.
+**/
+BOOLEAN
+IfSetPageTableReadOnly (
+  VOID
+  );
 
 //
 // SMM CPU Protocol function prototypes.

@@ -1339,12 +1339,27 @@ AllocatePageTableMemory (
 {
   VOID  *Buffer;
 
-  Buffer = SmmCpuFeaturesAllocatePageTableMemory (Pages);
-  if (Buffer != NULL) {
-    return Buffer;
+  if (Pages == 0) {
+    return NULL;
   }
 
-  return AllocatePages (Pages);
+  //
+  // Renew the pool if necessary.
+  //
+  if ((mPageTablePool == NULL) ||
+      (Pages > mPageTablePool->FreePages))
+  {
+    if (!InitializePageTablePool (Pages)) {
+      return NULL;
+    }
+  }
+
+  Buffer = (UINT8 *)mPageTablePool + mPageTablePool->Offset;
+
+  mPageTablePool->Offset    += EFI_PAGES_TO_SIZE (Pages);
+  mPageTablePool->FreePages -= Pages;
+
+  return Buffer;
 }
 
 /**

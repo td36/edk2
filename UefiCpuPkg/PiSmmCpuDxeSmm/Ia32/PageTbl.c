@@ -238,22 +238,7 @@ SetPageTableAttributes (
   BOOLEAN  PageTableSplitted;
   BOOLEAN  CetEnabled;
 
-  //
-  // Don't mark page table to read-only if heap guard is enabled.
-  //
-  //      BIT2: SMM page guard enabled
-  //      BIT3: SMM pool guard enabled
-  //
-  if ((PcdGet8 (PcdHeapGuardPropertyMask) & (BIT3 | BIT2)) != 0) {
-    DEBUG ((DEBUG_INFO, "Don't mark page table to read-only as heap guard is enabled\n"));
-    return;
-  }
-
-  //
-  // Don't mark page table to read-only if SMM profile is enabled.
-  //
-  if (FeaturePcdGet (PcdCpuSmmProfileEnable)) {
-    DEBUG ((DEBUG_INFO, "Don't mark page table to read-only as SMM profile is enabled\n"));
+  if (!IfSetPageTableReadOnly ()) {
     return;
   }
 
@@ -360,5 +345,38 @@ IsRestrictedMemoryAccess (
   VOID
   )
 {
+  return TRUE;
+}
+
+/**
+  Return whether memory used by SMM page table should be set as Read Only.
+
+  @retval TRUE  Need to set SMM page table as Read Only.
+  @retval FALSE Do not set SMM page table as Read Only.
+**/
+BOOLEAN
+IfSetPageTableReadOnly (
+  VOID
+  )
+{
+  //
+  // Don't mark page table to read-only if heap guard is enabled.
+  //
+  //      BIT2: SMM page guard enabled
+  //      BIT3: SMM pool guard enabled
+  //
+  if ((PcdGet8 (PcdHeapGuardPropertyMask) & (BIT3 | BIT2)) != 0) {
+    DEBUG ((DEBUG_INFO, "Don't mark page table to read-only as heap guard is enabled\n"));
+    return FALSE;
+  }
+
+  //
+  // Don't mark page table to read-only if SMM profile is enabled.
+  //
+  if (FeaturePcdGet (PcdCpuSmmProfileEnable)) {
+    DEBUG ((DEBUG_INFO, "Don't mark page table to read-only as SMM profile is enabled\n"));
+    return FALSE;
+  }
+
   return TRUE;
 }

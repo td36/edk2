@@ -1180,30 +1180,7 @@ SetPageTableAttributes (
   BOOLEAN   Enable5LevelPaging;
   IA32_CR4  Cr4;
 
-  //
-  // Don't mark page table memory as read-only if
-  //  - no restriction on access to non-SMRAM memory; or
-  //  - SMM heap guard feature enabled; or
-  //      BIT2: SMM page guard enabled
-  //      BIT3: SMM pool guard enabled
-  //  - SMM profile feature enabled
-  //
-  if (!mCpuSmmRestrictedMemoryAccess ||
-      ((PcdGet8 (PcdHeapGuardPropertyMask) & (BIT3 | BIT2)) != 0) ||
-      FeaturePcdGet (PcdCpuSmmProfileEnable))
-  {
-    //
-    // Restriction on access to non-SMRAM memory and heap guard could not be enabled at the same time.
-    //
-    ASSERT (
-      !(mCpuSmmRestrictedMemoryAccess &&
-        (PcdGet8 (PcdHeapGuardPropertyMask) & (BIT3 | BIT2)) != 0)
-      );
-
-    //
-    // Restriction on access to non-SMRAM memory and SMM profile could not be enabled at the same time.
-    //
-    ASSERT (!(mCpuSmmRestrictedMemoryAccess && FeaturePcdGet (PcdCpuSmmProfileEnable)));
+  if (!IfSetPageTableReadOnly ()) {
     return;
   }
 
@@ -1355,4 +1332,45 @@ IsRestrictedMemoryAccess (
   )
 {
   return mCpuSmmRestrictedMemoryAccess;
+}
+
+/**
+  Return whether memory used by SMM page table should be set as Read Only.
+
+  @retval TRUE  Need to set SMM page table as Read Only.
+  @retval FALSE Do not set SMM page table as Read Only.
+**/
+BOOLEAN
+IfSetPageTableReadOnly (
+  VOID
+  )
+{
+  //
+  // Don't mark page table memory as read-only if
+  //  - no restriction on access to non-SMRAM memory; or
+  //  - SMM heap guard feature enabled; or
+  //      BIT2: SMM page guard enabled
+  //      BIT3: SMM pool guard enabled
+  //  - SMM profile feature enabled
+  //
+  if (!mCpuSmmRestrictedMemoryAccess ||
+      ((PcdGet8 (PcdHeapGuardPropertyMask) & (BIT3 | BIT2)) != 0) ||
+      FeaturePcdGet (PcdCpuSmmProfileEnable))
+  {
+    //
+    // Restriction on access to non-SMRAM memory and heap guard could not be enabled at the same time.
+    //
+    ASSERT (
+      !(mCpuSmmRestrictedMemoryAccess &&
+        (PcdGet8 (PcdHeapGuardPropertyMask) & (BIT3 | BIT2)) != 0)
+      );
+
+    //
+    // Restriction on access to non-SMRAM memory and SMM profile could not be enabled at the same time.
+    //
+    ASSERT (!(mCpuSmmRestrictedMemoryAccess && FeaturePcdGet (PcdCpuSmmProfileEnable)));
+    return FALSE;
+  }
+
+  return TRUE;
 }

@@ -35,6 +35,84 @@ PAGE_ATTRIBUTE_TABLE  mPageAttributeTable[] = {
 BOOLEAN  mIsShadowStack      = FALSE;
 BOOLEAN  m5LevelPagingNeeded = FALSE;
 
+//
+// Global variable to keep track current available memory used as page table.
+//
+PAGE_TABLE_POOL  *mPageTablePool = NULL;
+
+/**
+  Initialize a buffer pool for page table use only.
+
+  To reduce the potential split operation on page table, the pages reserved for
+  page table should be allocated in the times of PAGE_TABLE_POOL_UNIT_PAGES and
+  at the boundary of PAGE_TABLE_POOL_ALIGNMENT. So the page pool is always
+  initialized with number of pages greater than or equal to the given PoolPages.
+
+  Once the pages in the pool are used up, this method should be called again to
+  reserve at least another PAGE_TABLE_POOL_UNIT_PAGES. But usually this won't
+  happen in practice.
+
+  @param PoolPages  The least page number of the pool to be created.
+
+  @retval TRUE    The pool is initialized successfully.
+  @retval FALSE   The memory is out of resource.
+**/
+BOOLEAN
+InitializePageTablePool (
+  IN UINTN  PoolPages
+  )
+{
+  VOID                *Buffer;
+  PAGING_MODE         PagingMode;
+  UINTN               PageTableBufferSize;
+  UINTN               PageTable;
+  VOID                *PageTableBuffer;
+  IA32_MAP_ATTRIBUTE  MapAttribute;
+  IA32_MAP_ATTRIBUTE  MapMask;
+  RETURN_STATUS       Status;
+
+  //
+  // Always reserve at least PAGE_TABLE_POOL_UNIT_PAGES, including one page for
+  // header.
+  //
+  PoolPages += 1;   // Add one page for header.
+  PoolPages  = ((PoolPages - 1) / PAGE_TABLE_POOL_UNIT_PAGES + 1) *
+               PAGE_TABLE_POOL_UNIT_PAGES;
+  Buffer = AllocateAlignedPages (PoolPages, PAGE_TABLE_POOL_ALIGNMENT);
+  if (Buffer == NULL) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Out of aligned pages\r\n"));
+    return FALSE;
+  }
+
+  //
+  // Link all pools into a list for easier track later.
+  //
+  if (mPageTablePool == NULL) {
+    mPageTablePool           = Buffer;
+    mPageTablePool->NextPool = mPageTablePool;
+  } else {
+    ((PAGE_TABLE_POOL *)Buffer)->NextPool = mPageTablePool->NextPool;
+    mPageTablePool->NextPool              = Buffer;
+    mPageTablePool                        = Buffer;
+  }
+
+  //
+  // Reserve one page for pool header.
+  //
+  mPageTablePool->FreePages = PoolPages - 1;
+  mPageTablePool->Offset    = EFI_PAGES_TO_SIZE (1);
+
+  //
+  // If access to non-SMRAM is restricted and mSmmReadyToLock is TRUE,
+  // Mark the new pool pages as read-only.
+  //
+  if (mSmmReadyToLock && IsRestrictedMemoryAccess () && IfSetPageTableReadOnly ()) {
+    SmmSetMemoryAttributes (Buffer, EFI_PAGES_TO_SIZE (PoolPages), EFI_MEMORY_RO);
+  }
+
+  return TRUE;
+}
+
 /**
   Return length according to page attributes.
 
