@@ -320,6 +320,24 @@ IfSetPageTableReadOnly (
   VOID
   );
 
+/**
+  Disable CET.
+**/
+VOID
+EFIAPI
+DisableCet (
+  VOID
+  );
+
+/**
+  Enable CET.
+**/
+VOID
+EFIAPI
+EnableCet (
+  VOID
+  );
+
 //
 // SMM CPU Protocol function prototypes.
 //

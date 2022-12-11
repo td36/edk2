@@ -1694,3 +1694,87 @@ EdkiiSmmGetMemoryAttributes (
 
   return EFI_SUCCESS;
 }
+
+/**
+  Prevent the memory pages used for SMM page table from been overwritten.
+**/
+VOID
+EnablePageTableProtection (
+  VOID
+  )
+{
+  PAGE_TABLE_POOL       *HeadPool;
+  PAGE_TABLE_POOL       *Pool;
+  UINT64                PoolSize;
+  EFI_PHYSICAL_ADDRESS  Address;
+
+  if (mPageTablePool == NULL) {
+    return;
+  }
+
+  AsmWriteCr0 (AsmReadCr0 () & ~CR0_WP);
+  //
+  // SmmSetMemoryAttributes might update mPageTablePool. It's safer to
+  // remember original one in advance.
+  //
+  HeadPool = mPageTablePool;
+  Pool     = HeadPool;
+  do {
+    Address  = (EFI_PHYSICAL_ADDRESS)(UINTN)Pool;
+    PoolSize = Pool->Offset + EFI_PAGES_TO_SIZE (Pool->FreePages);
+
+    //
+    // The size of one pool must be multiple of PAGE_TABLE_POOL_UNIT_SIZE.
+    // Let's apply the protection to them one by one.
+    //
+    SmmSetMemoryAttributes (Address, PoolSize, EFI_MEMORY_RO);
+    Pool = Pool->NextPool;
+  } while (Pool != HeadPool);
+
+  //
+  // Enable write protection, after page table attribute updated.
+  //
+  AsmWriteCr0 (AsmReadCr0 () | CR0_WP);
+}
+
+/**
+  This function sets memory attribute for page table.
+**/
+VOID
+SetPageTableAttributes (
+  VOID
+  )
+{
+  BOOLEAN  CetEnabled;
+
+  if (!IfSetPageTableReadOnly ()) {
+    return;
+  }
+
+  DEBUG ((DEBUG_INFO, "SetPageTableAttributes\n"));
+
+  //
+  // Disable write protection, because we need mark page table to be write protected.
+  // We need *write* page table memory, to mark itself to be *read only*.
+  //
+  CetEnabled = ((AsmReadCr4 () & CR4_CET_ENABLE) != 0) ? TRUE : FALSE;
+  if (CetEnabled) {
+    //
+    // CET must be disabled if WP is disabled.
+    //
+    DisableCet ();
+  }
+
+  // Set memory used by page table as Read Only.
+  DEBUG ((DEBUG_INFO, "Start...\n"));
+  EnablePageTableProtection ();
+
+  if (CetEnabled) {
+    //
+    // re-enable CET.
+    //
+    EnableCet ();
+  }
+
+  return;
+}
