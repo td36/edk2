@@ -26,14 +26,9 @@ UINTN                            mGcdMemNumberOfDesc = 0;
 
 EFI_MEMORY_ATTRIBUTES_TABLE  *mUefiMemoryAttributesTable = NULL;
 
-PAGE_ATTRIBUTE_TABLE  mPageAttributeTable[] = {
-  { Page4K, SIZE_4KB, PAGING_4K_ADDRESS_MASK_64 },
-  { Page2M, SIZE_2MB, PAGING_2M_ADDRESS_MASK_64 },
-  { Page1G, SIZE_1GB, PAGING_1G_ADDRESS_MASK_64 },
-};
-
-BOOLEAN  mIsShadowStack      = FALSE;
-BOOLEAN  m5LevelPagingNeeded = FALSE;
+BOOLEAN      mIsShadowStack      = FALSE;
+BOOLEAN      m5LevelPagingNeeded = FALSE;
+PAGING_MODE  mPagingMode         = PagingModeMax;
 
 //
 // Global variable to keep track current available memory used as page table.
@@ -111,52 +106,6 @@ InitializePageTablePool (
   }
 
   return TRUE;
-}
-
-/**
-  Return length according to page attributes.
-
-  @param[in]  PageAttributes   The page attribute of the page entry.
-
-  @return The length of page entry.
-**/
-UINTN
-PageAttributeToLength (
-  IN PAGE_ATTRIBUTE  PageAttribute
-  )
-{
-  UINTN  Index;
-
-  for (Index = 0; Index < sizeof (mPageAttributeTable)/sizeof (mPageAttributeTable[0]); Index++) {
-    if (PageAttribute == mPageAttributeTable[Index].Attribute) {
-      return (UINTN)mPageAttributeTable[Index].Length;
-    }
-  }
-
-  return 0;
-}
-
-/**
-  Return address mask according to page attributes.
-
-  @param[in]  PageAttributes   The page attribute of the page entry.
-
-  @return The address mask of page entry.
-**/
-UINTN
-PageAttributeToMask (
-  IN PAGE_ATTRIBUTE  PageAttribute
-  )
-{
-  UINTN  Index;
-
-  for (Index = 0; Index < sizeof (mPageAttributeTable)/sizeof (mPageAttributeTable[0]); Index++) {
-    if (PageAttribute == mPageAttributeTable[Index].Attribute) {
-      return (UINTN)mPageAttributeTable[Index].AddressMask;
-    }
-  }
-
-  return 0;
 }
 
 /**
@@ -282,193 +231,16 @@ GetAttributesFromPageEntry (
 }
 
 /**
-  Modify memory attributes of page entry.
-
-  @param[in]   PageEntry        The page entry.
-  @param[in]   Attributes       The bit mask of attributes to modify for the memory region.
-  @param[in]   IsSet            TRUE means to set attributes. FALSE means to clear attributes.
-  @param[out]  IsModified       TRUE means page table modified. FALSE means page table not modified.
-**/
-VOID
-ConvertPageEntryAttribute (
-  IN  UINT64   *PageEntry,
-  IN  UINT64   Attributes,
-  IN  BOOLEAN  IsSet,
-  OUT BOOLEAN  *IsModified
-  )
-{
-  UINT64  CurrentPageEntry;
-  UINT64  NewPageEntry;
-
-  CurrentPageEntry = *PageEntry;
-  NewPageEntry     = CurrentPageEntry;
-  if ((Attributes & EFI_MEMORY_RP) != 0) {
-    if (IsSet) {
-      NewPageEntry &= ~(UINT64)IA32_PG_P;
-    } else {
-      NewPageEntry |= IA32_PG_P;
-    }
-  }
-
-  if ((Attributes & EFI_MEMORY_RO) != 0) {
-    if (IsSet) {
-      NewPageEntry &= ~(UINT64)IA32_PG_RW;
-      if (mIsShadowStack) {
-        // Environment setup
-        // ReadOnly page need set Dirty bit for shadow stack
-        NewPageEntry |= IA32_PG_D;
-        // Clear user bit for supervisor shadow stack
-        NewPageEntry &= ~(UINT64)IA32_PG_U;
-      } else {
-        // Runtime update
-        // Clear dirty bit for non shadow stack, to protect RO page.
-        NewPageEntry &= ~(UINT64)IA32_PG_D;
-      }
-    } else {
-      NewPageEntry |= IA32_PG_RW;
-    }
-  }
-
-  if ((Attributes & EFI_MEMORY_XP) != 0) {
-    if (mXdSupported) {
-      if (IsSet) {
-        NewPageEntry |= IA32_PG_NX;
-      } else {
-        NewPageEntry &= ~IA32_PG_NX;
-      }
-    }
-  }
-
-  *PageEntry = NewPageEntry;
-  if (CurrentPageEntry != NewPageEntry) {
-    *IsModified = TRUE;
-    DEBUG ((DEBUG_VERBOSE, "ConvertPageEntryAttribute 0x%lx", CurrentPageEntry));
-    DEBUG ((DEBUG_VERBOSE, "->0x%lx\n", NewPageEntry));
-  } else {
-    *IsModified = FALSE;
-  }
-}
-
-/**
-  This function returns if there is need to split page entry.
-
-  @param[in]  BaseAddress      The base address to be checked.
-  @param[in]  Length           The length to be checked.
-  @param[in]  PageEntry        The page entry to be checked.
-  @param[in]  PageAttribute    The page attribute of the page entry.
-
-  @retval SplitAttributes on if there is need to split page entry.
-**/
-PAGE_ATTRIBUTE
-NeedSplitPage (
-  IN  PHYSICAL_ADDRESS  BaseAddress,
-  IN  UINT64            Length,
-  IN  UINT64            *PageEntry,
-  IN  PAGE_ATTRIBUTE    PageAttribute
-  )
-{
-  UINT64  PageEntryLength;
-
-  PageEntryLength = PageAttributeToLength (PageAttribute);
-
-  if (((BaseAddress & (PageEntryLength - 1)) == 0) && (Length >= PageEntryLength)) {
-    return PageNone;
-  }
-
-  if (((BaseAddress & PAGING_2M_MASK) != 0) || (Length < SIZE_2MB)) {
-    return Page4K;
-  }
-
-  return Page2M;
-}
-
-/**
-  This function splits one page entry to small page entries.
-
-  @param[in]  PageEntry        The page entry to be splitted.
-  @param[in]  PageAttribute    The page attribute of the page entry.
-  @param[in]  SplitAttribute   How to split the page entry.
-
-  @retval RETURN_SUCCESS            The page entry is splitted.
-  @retval RETURN_UNSUPPORTED        The page entry does not support to be splitted.
-  @retval RETURN_OUT_OF_RESOURCES   No resource to split page entry.
-**/
-RETURN_STATUS
-SplitPage (
-  IN  UINT64          *PageEntry,
-  IN  PAGE_ATTRIBUTE  PageAttribute,
-  IN  PAGE_ATTRIBUTE  SplitAttribute
-  )
-{
-  UINT64  BaseAddress;
-  UINT64  *NewPageEntry;
-  UINTN   Index;
-
-  ASSERT (PageAttribute == Page2M || PageAttribute == Page1G);
-
-  if (PageAttribute == Page2M) {
-    //
-    // Split 2M to 4K
-    //
-    ASSERT (SplitAttribute == Page4K);
-    if (SplitAttribute == Page4K) {
-      NewPageEntry = AllocatePageTableMemory (1);
-      DEBUG ((DEBUG_VERBOSE, "Split - 0x%x\n", NewPageEntry));
-      if (NewPageEntry == NULL) {
-        return RETURN_OUT_OF_RESOURCES;
-      }
-
-      BaseAddress = *PageEntry & PAGING_2M_ADDRESS_MASK_64;
-      for (Index = 0; Index < SIZE_4KB / sizeof (UINT64); Index++) {
-        NewPageEntry[Index] = (BaseAddress + SIZE_4KB * Index) | mAddressEncMask | ((*PageEntry) & PAGE_PROGATE_BITS);
-      }
-
-      (*PageEntry) = (UINT64)(UINTN)NewPageEntry | mAddressEncMask | PAGE_ATTRIBUTE_BITS;
-      return RETURN_SUCCESS;
-    } else {
-      return RETURN_UNSUPPORTED;
-    }
-  } else if (PageAttribute == Page1G) {
-    //
-    // Split 1G to 2M
-    // No need support 1G->4K directly, we should use 1G->2M, then 2M->4K to get more compact page table.
-    //
-    ASSERT (SplitAttribute == Page2M || SplitAttribute == Page4K);
-    if (((SplitAttribute == Page2M) || (SplitAttribute == Page4K))) {
-      NewPageEntry = AllocatePageTableMemory (1);
-      DEBUG ((DEBUG_VERBOSE, "Split - 0x%x\n", NewPageEntry));
-      if (NewPageEntry == NULL) {
-        return RETURN_OUT_OF_RESOURCES;
-      }
-
-      BaseAddress = *PageEntry & PAGING_1G_ADDRESS_MASK_64;
-      for (Index = 0; Index < SIZE_4KB / sizeof (UINT64); Index++) {
-        NewPageEntry[Index] = (BaseAddress + SIZE_2MB * Index) | mAddressEncMask | IA32_PG_PS | ((*PageEntry) & PAGE_PROGATE_BITS);
-      }
-
-      (*PageEntry) = (UINT64)(UINTN)NewPageEntry | mAddressEncMask | PAGE_ATTRIBUTE_BITS;
-      return RETURN_SUCCESS;
-    } else {
-      return RETURN_UNSUPPORTED;
-    }
-  } else {
-    return RETURN_UNSUPPORTED;
-  }
-}
-
-/**
   This function modifies the page attributes for the memory region specified by BaseAddress and
   Length from their current attributes to the attributes specified by Attributes.
 
   Caller should make sure BaseAddress and Length is at page boundary.
 
   @param[in]   PageTableBase    The page table base.
-  @param[in]   EnablePML5Paging If PML5 paging is enabled.
   @param[in]   BaseAddress      The physical address that is the start address of a memory region.
   @param[in]   Length           The size in bytes of the memory region.
   @param[in]   Attributes       The bit mask of attributes to modify for the memory region.
   @param[in]   IsSet            TRUE means to set attributes. FALSE means to clear attributes.
-  @param[out]  IsSplitted       TRUE means page table splitted. FALSE means page table not splitted.
   @param[out]  IsModified       TRUE means page table modified. FALSE means page table not modified.
 
   @retval RETURN_SUCCESS           The attributes were modified for the memory region.
@@ -487,21 +259,19 @@ SplitPage (
 RETURN_STATUS
 ConvertMemoryPageAttributes (
   IN  UINTN             PageTableBase,
-  IN  BOOLEAN           EnablePML5Paging,
+  IN  PAGING_MODE       PagingMode,
   IN  PHYSICAL_ADDRESS  BaseAddress,
   IN  UINT64            Length,
   IN  UINT64            Attributes,
   IN  BOOLEAN           IsSet,
-  OUT BOOLEAN           *IsSplitted   OPTIONAL,
   OUT BOOLEAN           *IsModified   OPTIONAL
   )
 {
-  UINT64                *PageEntry;
-  PAGE_ATTRIBUTE        PageAttribute;
-  UINTN                 PageEntryLength;
-  PAGE_ATTRIBUTE        SplitAttribute;
   RETURN_STATUS         Status;
-  BOOLEAN               IsEntryModified;
+  IA32_MAP_ATTRIBUTE    PagingAttribute;
+  IA32_MAP_ATTRIBUTE    PagingAttrMask;
+  UINTN                 PageTableBufferSize;
+  VOID                  *PageTableBuffer;
   EFI_PHYSICAL_ADDRESS  MaximumSupportMemAddress;
 
   ASSERT (Attributes != 0);
@@ -509,6 +279,7 @@ ConvertMemoryPageAttributes (
 
   ASSERT ((BaseAddress & (SIZE_4KB - 1)) == 0);
   ASSERT ((Length & (SIZE_4KB - 1)) == 0);
+  ASSERT (PageTableBase != 0);
 
   if (Length == 0) {
     return RETURN_INVALID_PARAMETER;
@@ -527,60 +298,54 @@ ConvertMemoryPageAttributes (
     return RETURN_UNSUPPORTED;
   }
 
-  //  DEBUG ((DEBUG_ERROR, "ConvertMemoryPageAttributes(%x) - %016lx, %016lx, %02lx\n", IsSet, BaseAddress, Length, Attributes));
+  PagingAttribute.Uint64 = 0;
+  PagingAttrMask.Uint64  = 0;
 
-  if (IsSplitted != NULL) {
-    *IsSplitted = FALSE;
+  if ((Attributes & EFI_MEMORY_RP) != 0) {
+    PagingAttribute.Bits.Present = IsSet ? 0 : 1;
+    PagingAttrMask.Bits.Present  = 1;
   }
 
-  if (IsModified != NULL) {
-    *IsModified = FALSE;
-  }
-
-  //
-  // Below logic is to check 2M/4K page to make sure we do not waste memory.
-  //
-  while (Length != 0) {
-    PageEntry = GetPageTableEntry (PageTableBase, EnablePML5Paging, BaseAddress, &PageAttribute);
-    if (PageEntry == NULL) {
-      return RETURN_UNSUPPORTED;
-    }
-
-    PageEntryLength = PageAttributeToLength (PageAttribute);
-    SplitAttribute  = NeedSplitPage (BaseAddress, Length, PageEntry, PageAttribute);
-    if (SplitAttribute == PageNone) {
-      ConvertPageEntryAttribute (PageEntry, Attributes, IsSet, &IsEntryModified);
-      if (IsEntryModified) {
-        if (IsModified != NULL) {
-          *IsModified = TRUE;
-        }
+  if ((Attributes & EFI_MEMORY_RO) != 0) {
+    PagingAttrMask.Bits.ReadWrite = 1;
+    if (IsSet) {
+      PagingAttribute.Bits.ReadWrite = 0;
+      PagingAttrMask.Bits.Dirty      = 1;
+      if (mIsShadowStack) {
+        // Environment setup
+        // ReadOnly page need set Dirty bit for shadow stack
+        PagingAttribute.Bits.Dirty = 1;
+        // Clear user bit for supervisor shadow stack
+        PagingAttribute.Bits.UserSupervisor = 0;
+        PagingAttrMask.Bits.UserSupervisor  = 1;
+      } else {
+        // Runtime update
+        // Clear dirty bit for non shadow stack, to protect RO page.
+        PagingAttribute.Bits.Dirty = 0;
       }
-
-      //
-      // Convert success, move to next
-      //
-      BaseAddress += PageEntryLength;
-      Length      -= PageEntryLength;
     } else {
-      Status = SplitPage (PageEntry, PageAttribute, SplitAttribute);
-      if (RETURN_ERROR (Status)) {
-        return RETURN_UNSUPPORTED;
-      }
-
-      if (IsSplitted != NULL) {
-        *IsSplitted = TRUE;
-      }
-
-      if (IsModified != NULL) {
-        *IsModified = TRUE;
-      }
-
-      //
-      // Just split current page
-      // Convert success in next around
-      //
+      PagingAttribute.Bits.ReadWrite = 0;
     }
   }
+
+  if ((Attributes & EFI_MEMORY_XP) != 0) {
+    if (mXdSupported) {
+      PagingAttribute.Bits.Nx = IsSet ? 1 : 0;
+      PagingAttrMask.Bits.Nx  = 1;
+    }
+  }
+
+  PageTableBufferSize = 0;
+  Status              = PageTableMap (&PageTableBase, PagingMode, NULL, &PageTableBufferSize, BaseAddress, Length, &PagingAttribute, &PagingAttrMask, IsModified);
+  if (Status == RETURN_BUFFER_TOO_SMALL) {
+    DEBUG ((DEBUG_INFO, "SMM(%d): 0x%x bytes needed for converting page table\n", __LINE__, PageTableBufferSize));
+    PageTableBuffer = AllocatePageTableMemory (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+    ASSERT (PageTableBuffer != NULL);
+    Status = PageTableMap (&PageTableBase, PagingMode, PageTableBuffer, &PageTableBufferSize, BaseAddress, Length, &PagingAttribute, &PagingAttrMask, IsModified);
+  }
+
+  ASSERT (Status == RETURN_SUCCESS);
+  ASSERT (PageTableBufferSize == 0);
 
   return RETURN_SUCCESS;
 }
@@ -625,11 +390,10 @@ FlushTlbForAll (
   Length from their current attributes to the attributes specified by Attributes.
 
   @param[in]   PageTableBase    The page table base.
-  @param[in]   EnablePML5Paging If PML5 paging is enabled.
+  @param[in]   PagingMode       The paging mode.
   @param[in]   BaseAddress      The physical address that is the start address of a memory region.
   @param[in]   Length           The size in bytes of the memory region.
   @param[in]   Attributes       The bit mask of attributes to set for the memory region.
-  @param[out]  IsSplitted       TRUE means page table splitted. FALSE means page table not splitted.
 
   @retval EFI_SUCCESS           The attributes were set for the memory region.
   @retval EFI_ACCESS_DENIED     The attributes for the memory resource range specified by
@@ -648,17 +412,16 @@ FlushTlbForAll (
 EFI_STATUS
 SmmSetMemoryAttributesEx (
   IN  UINTN                 PageTableBase,
-  IN  BOOLEAN               EnablePML5Paging,
+  IN  PAGING_MODE           PagingMode,
   IN  EFI_PHYSICAL_ADDRESS  BaseAddress,
   IN  UINT64                Length,
-  IN  UINT64                Attributes,
-  OUT BOOLEAN               *IsSplitted  OPTIONAL
+  IN  UINT64                Attributes
   )
 {
   EFI_STATUS  Status;
   BOOLEAN     IsModified;
 
-  Status = ConvertMemoryPageAttributes (PageTableBase, EnablePML5Paging, BaseAddress, Length, Attributes, TRUE, IsSplitted, &IsModified);
+  Status = ConvertMemoryPageAttributes (PageTableBase, PagingMode, BaseAddress, Length, Attributes, TRUE, &IsModified);
   if (!EFI_ERROR (Status)) {
     if (IsModified) {
       //
@@ -676,11 +439,10 @@ SmmSetMemoryAttributesEx (
   Length from their current attributes to the attributes specified by Attributes.
 
   @param[in]   PageTableBase    The page table base.
-  @param[in]   EnablePML5Paging If PML5 paging is enabled.
+  @param[in]   PagingMode       The paging mode.
   @param[in]   BaseAddress      The physical address that is the start address of a memory region.
   @param[in]   Length           The size in bytes of the memory region.
   @param[in]   Attributes       The bit mask of attributes to clear for the memory region.
-  @param[out]  IsSplitted       TRUE means page table splitted. FALSE means page table not splitted.
 
   @retval EFI_SUCCESS           The attributes were cleared for the memory region.
   @retval EFI_ACCESS_DENIED     The attributes for the memory resource range specified by
@@ -699,17 +461,16 @@ SmmSetMemoryAttributesEx (
 EFI_STATUS
 SmmClearMemoryAttributesEx (
   IN  UINTN                 PageTableBase,
-  IN  BOOLEAN               EnablePML5Paging,
+  IN  PAGING_MODE           PagingMode,
   IN  EFI_PHYSICAL_ADDRESS  BaseAddress,
   IN  UINT64                Length,
-  IN  UINT64                Attributes,
-  OUT BOOLEAN               *IsSplitted  OPTIONAL
+  IN  UINT64                Attributes
   )
 {
   EFI_STATUS  Status;
   BOOLEAN     IsModified;
 
-  Status = ConvertMemoryPageAttributes (PageTableBase, EnablePML5Paging, BaseAddress, Length, Attributes, FALSE, IsSplitted, &IsModified);
+  Status = ConvertMemoryPageAttributes (PageTableBase, PagingMode, BaseAddress, Length, Attributes, FALSE, &IsModified);
   if (!EFI_ERROR (Status)) {
     if (IsModified) {
       //
@@ -751,14 +512,10 @@ SmmSetMemoryAttributes (
   IN  UINT64                Attributes
   )
 {
-  IA32_CR4  Cr4;
-  UINTN     PageTableBase;
-  BOOLEAN   Enable5LevelPaging;
+  UINTN  PageTableBase;
 
-  PageTableBase      = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
-  Cr4.UintN          = AsmReadCr4 ();
-  Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
-  return SmmSetMemoryAttributesEx (PageTableBase, Enable5LevelPaging, BaseAddress, Length, Attributes, NULL);
+  PageTableBase = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
+  return SmmSetMemoryAttributesEx (PageTableBase, mPagingMode, BaseAddress, Length, Attributes);
 }
 
 /**
@@ -790,14 +547,10 @@ SmmClearMemoryAttributes (
   IN  UINT64                Attributes
   )
 {
-  IA32_CR4  Cr4;
-  UINTN     PageTableBase;
-  BOOLEAN   Enable5LevelPaging;
+  UINTN  PageTableBase;
 
-  PageTableBase      = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
-  Cr4.UintN          = AsmReadCr4 ();
-  Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
-  return SmmClearMemoryAttributesEx (PageTableBase, Enable5LevelPaging, BaseAddress, Length, Attributes, NULL);
+  PageTableBase = AsmReadCr3 () & PAGING_4K_ADDRESS_MASK_64;
+  return SmmClearMemoryAttributesEx (PageTableBase, mPagingMode, BaseAddress, Length, Attributes);
 }
 
 /**
@@ -819,7 +572,7 @@ SetShadowStack (
   EFI_STATUS  Status;
 
   mIsShadowStack = TRUE;
-  Status         = SmmSetMemoryAttributesEx (Cr3, m5LevelPagingNeeded, BaseAddress, Length, EFI_MEMORY_RO, NULL);
+  Status         = SmmSetMemoryAttributesEx (Cr3, mPagingMode, BaseAddress, Length, EFI_MEMORY_RO);
   mIsShadowStack = FALSE;
 
   return Status;
@@ -843,7 +596,7 @@ SetNotPresentPage (
 {
   EFI_STATUS  Status;
 
-  Status = SmmSetMemoryAttributesEx (Cr3, m5LevelPagingNeeded, BaseAddress, Length, EFI_MEMORY_RP, NULL);
+  Status = SmmSetMemoryAttributesEx (Cr3, mPagingMode, BaseAddress, Length, EFI_MEMORY_RP);
   return Status;
 }
 

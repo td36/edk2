@@ -352,7 +352,12 @@ SmmInitPageTable (
   m1GPageTableSupport           = Is1GPageSupport ();
   m5LevelPagingNeeded           = Is5LevelPagingNeeded ();
   mPhysicalAddressBits          = CalculateMaximumSupportAddress ();
-  PatchInstructionX86 (gPatch5LevelPagingNeeded, m5LevelPagingNeeded, 1);
+  if (m5LevelPagingNeeded) {
+    mPagingMode = m1GPageTableSupport ? Paging5Level1GB : Paging5Level;
+    PatchInstructionX86 (gPatch5LevelPagingNeeded, TRUE, 1);
+  } else {
+    mPagingMode = m1GPageTableSupport ? Paging4Level1GB : Paging4Level;
+  }
   DEBUG ((DEBUG_INFO, "5LevelPaging Needed             - %d\n", m5LevelPagingNeeded));
   DEBUG ((DEBUG_INFO, "1GPageTable Support             - %d\n", m1GPageTableSupport));
   DEBUG ((DEBUG_INFO, "PcdCpuSmmRestrictedMemoryAccess - %d\n", mCpuSmmRestrictedMemoryAccess));

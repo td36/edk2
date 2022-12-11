@@ -31,6 +31,7 @@ SmmInitPageTable (
   InitializeSpinLock (mPFLock);
 
   mPhysicalAddressBits = 32;
+  mPagingMode          = PagingPae;
 
   if (FeaturePcdGet (PcdCpuSmmProfileEnable) ||
       HEAP_GUARD_NONSTOP_MODE ||
