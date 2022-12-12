@@ -35,26 +35,17 @@ InitSmmS3Cr3 (
   VOID
   )
 {
-  EFI_PHYSICAL_ADDRESS  Pages;
-  UINT64                *PTEntry;
+  UINTN  PageTable;
 
   //
-  // Generate PAE page table for the first 4GB memory space
+  // Generate level4 page table for the first 4GB memory space
   //
-  Pages = Gen4GPageTable (FALSE);
-
-  //
-  // Fill Page-Table-Level4 (PML4) entry
-  //
-  PTEntry = (UINT64 *)AllocatePageTableMemory (1);
-  ASSERT (PTEntry != NULL);
-  *PTEntry = Pages | mAddressEncMask | PAGE_ATTRIBUTE_BITS;
-  ZeroMem (PTEntry + 1, EFI_PAGE_SIZE - sizeof (*PTEntry));
+  PageTable = GenSmmPageTable (Paging4Level, 32);
 
   //
   // Return the address of PML4 (to set CR3)
   //
-  mSmmS3ResumeState->SmmS3Cr3 = (UINT32)(UINTN)PTEntry;
+  mSmmS3ResumeState->SmmS3Cr3 = (UINT32)PageTable;
 
   return;
 }

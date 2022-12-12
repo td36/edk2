@@ -13,8 +13,6 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #define PAGE_TABLE_PAGES  8
 #define ACC_MAX_BIT       BIT3
 
-extern UINTN  mSmmShadowStackSize;
-
 LIST_ENTRY                mPagePool           = INITIALIZE_LIST_HEAD_VARIABLE (mPagePool);
 BOOLEAN                   m1GPageTableSupport = FALSE;
 BOOLEAN                   mCpuSmmRestrictedMemoryAccess;
@@ -333,13 +331,13 @@ SmmInitPageTable (
   VOID
   )
 {
-  EFI_PHYSICAL_ADDRESS      Pages;
-  UINT64                    *PTEntry;
+  UINTN                     PageTable;
   LIST_ENTRY                *FreePage;
   UINTN                     Index;
   UINTN                     PageFaultHandlerHookAddress;
   IA32_IDT_GATE_DESCRIPTOR  *IdtEntry;
   EFI_STATUS                Status;
+  UINT64                    *Pml3Entry;
   UINT64                    *Pml4Entry;
   UINT64                    *Pml5Entry;
 
@@ -358,59 +356,37 @@ SmmInitPageTable (
   } else {
     mPagingMode = m1GPageTableSupport ? Paging4Level1GB : Paging4Level;
   }
+
   DEBUG ((DEBUG_INFO, "5LevelPaging Needed             - %d\n", m5LevelPagingNeeded));
   DEBUG ((DEBUG_INFO, "1GPageTable Support             - %d\n", m1GPageTableSupport));
   DEBUG ((DEBUG_INFO, "PcdCpuSmmRestrictedMemoryAccess - %d\n", mCpuSmmRestrictedMemoryAccess));
   DEBUG ((DEBUG_INFO, "PhysicalAddressBits             - %d\n", mPhysicalAddressBits));
-  //
-  // Generate PAE page table for the first 4GB memory space
-  //
-  Pages = Gen4GPageTable (FALSE);
 
   //
-  // Set IA32_PG_PMNT bit to mask this entry
+  // Generate initial SMM page table
   //
-  PTEntry = (UINT64 *)(UINTN)Pages;
-  for (Index = 0; Index < 4; Index++) {
-    PTEntry[Index] |= IA32_PG_PMNT;
-  }
-
-  //
-  // Fill Page-Table-Level4 (PML4) entry
-  //
-  Pml4Entry = (UINT64 *)AllocatePageTableMemory (1);
-  ASSERT (Pml4Entry != NULL);
-  *Pml4Entry = Pages | mAddressEncMask | PAGE_ATTRIBUTE_BITS;
-  ZeroMem (Pml4Entry + 1, EFI_PAGE_SIZE - sizeof (*Pml4Entry));
-
-  //
-  // Set sub-entries number
-  //
-  SetSubEntriesNum (Pml4Entry, 3);
-  PTEntry = Pml4Entry;
+  PageTable = GenSmmPageTable (mPagingMode, mPhysicalAddressBits);
 
   if (m5LevelPagingNeeded) {
-    //
-    // Fill PML5 entry
-    //
-    Pml5Entry = (UINT64 *)AllocatePageTableMemory (1);
-    ASSERT (Pml5Entry != NULL);
-    *Pml5Entry = (UINTN)Pml4Entry | mAddressEncMask | PAGE_ATTRIBUTE_BITS;
-    ZeroMem (Pml5Entry + 1, EFI_PAGE_SIZE - sizeof (*Pml5Entry));
-    //
-    // Set sub-entries number
-    //
+    Pml5Entry = (UINT64 *)PageTable;
     SetSubEntriesNum (Pml5Entry, 1);
-    PTEntry = Pml5Entry;
+    Pml4Entry = (UINT64 *)((*Pml5Entry) & IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS_MASK);
+  } else {
+    Pml4Entry = (UINT64 *)PageTable;
   }
 
-  if (mCpuSmmRestrictedMemoryAccess) {
-    //
-    // When access to non-SMRAM memory is restricted, create page table
-    // that covers all memory space.
-    //
-    SetStaticPageTable ((UINTN)PTEntry, mPhysicalAddressBits);
-  } else {
+  SetSubEntriesNum (Pml4Entry, 3);
+
+  //
+  // Set IA32_PG_PMNT bit to mask first 4 Pml3Entry entry
+  // Set Pml4Entry sub-entries number
+  //
+  Pml3Entry = (UINT64 *)((*Pml4Entry) & IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS_MASK);
+  for (Index = 0; Index < 4; Index++) {
+    Pml3Entry[Index] |= IA32_PG_PMNT;
+  }
+
+  if (!mCpuSmmRestrictedMemoryAccess) {
     //
     // Add pages to page pool
     //
@@ -465,9 +441,9 @@ SmmInitPageTable (
   }
 
   //
-  // Return the address of PML4/PML5 (to set CR3)
+  // Return the address of SMM page table
   //
-  return (UINT32)(UINTN)PTEntry;
+  return (UINT32)PageTable;
 }
 
 /**

@@ -267,6 +267,7 @@ extern EFI_SMM_CPU_PROTOCOL  mSmmCpu;
 extern EFI_MM_MP_PROTOCOL    mSmmMp;
 extern BOOLEAN               m5LevelPagingNeeded;
 extern PAGING_MODE           mPagingMode;
+extern UINTN                 mSmmShadowStackSize;
 
 ///
 /// The mode of the CPU at the time an SMI occurs
@@ -561,13 +562,15 @@ extern UINT64  mAddressEncMask;
 /**
   Create 4G PageTable in SMRAM.
 
-  @param[in]      Is32BitPageTable Whether the page table is 32-bit PAE
+  @param[in]      PagingMode           Page table paging mode
+  @param[in]      PhysicalAddressBits  The bits of physical address to map.
   @return         PageTable Address
 
 **/
-UINT32
-Gen4GPageTable (
-  IN      BOOLEAN  Is32BitPageTable
+UINTN
+GenSmmPageTable (
+  IN PAGING_MODE  PagingMode,
+  IN UINT8        PhysicalAddressBits
   );
 
 /**

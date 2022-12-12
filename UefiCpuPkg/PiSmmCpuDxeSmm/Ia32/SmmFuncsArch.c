@@ -14,7 +14,6 @@ EFI_PHYSICAL_ADDRESS  mGdtBuffer;
 UINTN                 mGdtBufferSize;
 
 extern BOOLEAN  mCetSupported;
-extern UINTN    mSmmShadowStackSize;
 
 X86_ASSEMBLY_PATCH_LABEL  mPatchCetPl0Ssp;
 X86_ASSEMBLY_PATCH_LABEL  mPatchCetInterruptSsp;
