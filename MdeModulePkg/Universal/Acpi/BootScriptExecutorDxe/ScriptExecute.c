@@ -50,16 +50,26 @@ S3BootScriptExecutorEntryFunction (
   //
   SaveAndSetDebugTimerInterrupt (FALSE);
 
-  AsmReadIdtr (&IdtDescriptor);
-  //
-  // Restore IDT for debug
-  //
-  SetIdtEntry (AcpiS3Context);
+  if (!IsFredEnabled ()) {
+    AsmReadIdtr (&IdtDescriptor);
+    //
+    // Only create new IDT table, when PEI is in IA32 and DXE is in X64.
+    // Assumption is when PEI is in IA32 and DXE is in X64, DXE won't use FRED.
+    //
+    if (FeaturePcdGet (PcdDxeIplSwitchToLongMode)) {
+      //
+      // Restore IDT for debug
+      //
+      SetIdtEntry (AcpiS3Context);
+    }
 
-  //
-  // Initialize Debug Agent to support source level debug in S3 path, it will disable interrupt and Debug Timer.
-  //
-  InitializeDebugAgent (DEBUG_AGENT_INIT_S3, (VOID *)&IdtDescriptor, NULL);
+    //
+    // Initialize Debug Agent to support source level debug in S3 path, it will disable interrupt and Debug Timer.
+    //
+    InitializeDebugAgent (DEBUG_AGENT_INIT_S3, (VOID *)&IdtDescriptor, NULL);
+  } else {
+    InitializeDebugAgent (DEBUG_AGENT_INIT_S3, NULL, NULL);
+  }
 
   //
   // Because not install BootScriptExecute PPI(used just in this module), So just pass NULL

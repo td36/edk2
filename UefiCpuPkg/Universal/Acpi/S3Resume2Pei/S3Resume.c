@@ -42,6 +42,7 @@
 #include <Library/HobLib.h>
 #include <Library/LockBoxLib.h>
 #include <IndustryStandard/Acpi.h>
+#include <Library/CpuLib.h>
 
 /**
   This macro aligns the address of a variable with auto storage
@@ -422,10 +423,12 @@ S3ResumeBootOs (
   UINTN                                         TempStackTop;
   UINTN                                         TempStack[0x10];
 
-  //
-  // Restore IDT
-  //
-  AsmWriteIdtr (&PeiS3ResumeState->Idtr);
+  if (FeaturePcdGet (PcdDxeIplSwitchToLongMode)) {
+    //
+    // Restore IDT, IDT is changed only when PcdDxeIplSwitchToLongMode is true.
+    //
+    AsmWriteIdtr (&PeiS3ResumeState->Idtr);
+  }
 
   if (PeiS3ResumeState->ReturnStatus != EFI_SUCCESS) {
     //
@@ -890,10 +893,6 @@ S3ResumeExecuteBootScript (
   PeiS3ResumeState->ReturnCs           = 0x10;
   PeiS3ResumeState->ReturnEntryPoint   = (EFI_PHYSICAL_ADDRESS)(UINTN)S3ResumeBootOs;
   PeiS3ResumeState->ReturnStackPointer = (EFI_PHYSICAL_ADDRESS)STACK_ALIGN_DOWN (&Status);
-  //
-  // Save IDT
-  //
-  AsmReadIdtr (&PeiS3ResumeState->Idtr);
 
   //
   // Report Status Code to indicate S3 boot script execution
@@ -907,6 +906,11 @@ S3ResumeExecuteBootScript (
     // X64 S3 Resume
     //
     DEBUG ((DEBUG_INFO, "Enable X64 and transfer control to Standalone Boot Script Executor\r\n"));
+
+    //
+    // Save IDT, IDT table is changed only when PcdDxeIplSwitchToLongMode is true.
+    //
+    AsmReadIdtr (&PeiS3ResumeState->Idtr);
 
     //
     // Switch to long mode to complete resume.
