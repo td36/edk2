@@ -181,6 +181,14 @@ VOID
   IN   UINT32           AcpiLowMemoryBase
   );
 
+BOOLEAN
+IsLegacyReducesOsIsa (
+  VOID
+  )
+{
+  return TRUE;
+}
+
 /**
   Restores the platform to its preboot configuration for an S3 resume and
   jumps to the OS waking vector.
@@ -863,19 +871,21 @@ S3ResumeExecuteBootScript (
     AsmWriteCr3 ((UINTN)AcpiS3Context->S3NvsPageTableAddress);
   }
 
-  InterruptStatus = SaveAndDisableInterrupts ();
-  //
-  // Need to make sure the GDT is loaded with values that support long mode and real mode.
-  //
-  AsmWriteGdtr (&mGdt);
-  //
-  // update segment selectors per the new GDT.
-  //
-  AsmSetDataSelectors (DATA_SEGEMENT_SELECTOR);
-  //
-  // Restore interrupt state.
-  //
-  SetInterruptState (InterruptStatus);
+  if (!IsLegacyReducesOsIsa ()) {
+    InterruptStatus = SaveAndDisableInterrupts ();
+    //
+    // Need to make sure the GDT is loaded with values that support long mode and real mode.
+    //
+    AsmWriteGdtr (&mGdt);
+    //
+    // update segment selectors per the new GDT.
+    //
+    AsmSetDataSelectors (DATA_SEGEMENT_SELECTOR);
+    //
+    // Restore interrupt state.
+    //
+    SetInterruptState (InterruptStatus);
+  }
 
   //
   // Prepare data for return back
@@ -1087,7 +1097,11 @@ S3RestoreConfig2 (
     SmramDescriptor  = (EFI_SMRAM_DESCRIPTOR *)GET_GUID_HOB_DATA (GuidHob);
     SmmS3ResumeState = (SMM_S3_RESUME_STATE *)(UINTN)SmramDescriptor->CpuStart;
 
-    SmmS3ResumeState->ReturnCs           = AsmReadCs ();
+    //
+    // The field ReturnCs is only used if PEI is 32bit
+    // Hard code it as 0x10, since 0x10 is 32bit CS in mGdt.
+    //
+    SmmS3ResumeState->ReturnCs           = 0x10;
     SmmS3ResumeState->ReturnEntryPoint   = (EFI_PHYSICAL_ADDRESS)(UINTN)S3ResumeExecuteBootScript;
     SmmS3ResumeState->ReturnContext1     = (EFI_PHYSICAL_ADDRESS)(UINTN)AcpiS3Context;
     SmmS3ResumeState->ReturnContext2     = (EFI_PHYSICAL_ADDRESS)(UINTN)EfiBootScriptExecutorVariable;
