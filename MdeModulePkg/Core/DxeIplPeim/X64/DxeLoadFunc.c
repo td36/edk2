@@ -94,6 +94,7 @@ HandOffToDxeCore (
     // Create page table and save PageMapLevel4 to CR3
     //
     PageTables = CreateIdentityMappingPageTables (
+                   FALSE,
                    (EFI_PHYSICAL_ADDRESS)(UINTN)BaseOfStack,
                    STACK_SIZE,
                    (EFI_PHYSICAL_ADDRESS)(UINTN)GhcbBase,

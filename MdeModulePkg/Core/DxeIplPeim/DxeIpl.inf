@@ -60,6 +60,7 @@
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
+  UefiCpuPkg/UefiCpuPkg.dec
 
 [Packages.ARM, Packages.AARCH64]
   ArmPkg/ArmPkg.dec
@@ -79,6 +80,7 @@
   DebugAgentLib
   PeiServicesTablePointerLib
   PerformanceLib
+  CpuPageTableLib
 
 [LibraryClasses.ARM, LibraryClasses.AARCH64]
   ArmMmuLib

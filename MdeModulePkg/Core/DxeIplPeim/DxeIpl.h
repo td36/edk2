@@ -42,6 +42,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <Library/DebugAgentLib.h>
 #include <Library/PeiServicesTablePointerLib.h>
 #include <Library/PerformanceLib.h>
+#include <Library/CpuPageTableLib.h>
 
 #define STACK_SIZE      0x20000
 #define BSP_STORE_SIZE  0x4000

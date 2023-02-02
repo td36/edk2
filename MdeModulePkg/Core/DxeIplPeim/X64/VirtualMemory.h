@@ -185,53 +185,25 @@ IsEnableNonExecNeeded (
   );
 
 /**
-  Enable Execute Disable Bit.
-
-**/
-VOID
-EnableExecuteDisableBit (
-  VOID
-  );
-
-/**
-  Split 2M page to 4K.
-
-  @param[in]      PhysicalAddress       Start physical address the 2M page covered.
-  @param[in, out] PageEntry2M           Pointer to 2M page entry.
-  @param[in]      StackBase             Stack base address.
-  @param[in]      StackSize             Stack size.
-  @param[in]      GhcbBase              GHCB page area base address.
-  @param[in]      GhcbSize              GHCB page area size.
-
-**/
-VOID
-Split2MPageTo4K (
-  IN EFI_PHYSICAL_ADDRESS  PhysicalAddress,
-  IN OUT UINT64            *PageEntry2M,
-  IN EFI_PHYSICAL_ADDRESS  StackBase,
-  IN UINTN                 StackSize,
-  IN EFI_PHYSICAL_ADDRESS  GhcbBase,
-  IN UINTN                 GhcbSize
-  );
-
-/**
-  Allocates and fills in the Page Directory and Page Table Entries to
+  Create IA32 PAE paging or 4-level/5-level paging for long mode to
   establish a 1:1 Virtual to Physical mapping.
 
-  @param[in] StackBase  Stack base address.
-  @param[in] StackSize  Stack size.
-  @param[in] GhcbBase   GHCB page area base address.
-  @param[in] GhcbSize   GHCB page area size.
+  @param[in] Is32BitPageTable   Whether to create 32-bit PAE page table.
+  @param[in] StackBase          Stack base address.
+  @param[in] StackSize          Stack size.
+  @param[in] GhcbBase           GHCB page area base address.
+  @param[in] GhcbSize           GHCB page area size.
 
-  @return The address of 4 level page map.
+  @return The address of 4 level or 5 level page table.
 
 **/
 UINTN
 CreateIdentityMappingPageTables (
+  IN BOOLEAN               Is32BitPageTable,
   IN EFI_PHYSICAL_ADDRESS  StackBase,
   IN UINTN                 StackSize,
   IN EFI_PHYSICAL_ADDRESS  GhcbBase,
-  IN UINTN                 GhcbkSize
+  IN UINTN                 GhcbSize
   );
 
 /**
@@ -287,41 +259,6 @@ ClearFirst4KPage (
 BOOLEAN
 IsNullDetectionEnabled (
   VOID
-  );
-
-/**
-  Prevent the memory pages used for page table from been overwritten.
-
-  @param[in] PageTableBase    Base address of page table (CR3).
-  @param[in] Level4Paging     Level 4 paging flag.
-
-**/
-VOID
-EnablePageTableProtection (
-  IN  UINTN    PageTableBase,
-  IN  BOOLEAN  Level4Paging
-  );
-
-/**
-  This API provides a way to allocate memory for page table.
-
-  This API can be called more than once to allocate memory for page tables.
-
-  Allocates the number of 4KB pages and returns a pointer to the allocated
-  buffer. The buffer returned is aligned on a 4KB boundary.
-
-  If Pages is 0, then NULL is returned.
-  If there is not enough memory remaining to satisfy the request, then NULL is
-  returned.
-
-  @param  Pages                 The number of 4 KB pages to allocate.
-
-  @return A pointer to the allocated buffer or NULL if allocation fails.
-
-**/
-VOID *
-AllocatePageTableMemory (
-  IN UINTN  Pages
   );
 
 #endif
