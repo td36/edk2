@@ -2051,9 +2051,21 @@ MpInitLibInitialize (
     //
     // Set up INIT MSR
     //
-    Entry = AllocatePages (EFI_SIZE_TO_PAGES (sizeof (*Entry)));
-    ASSERT (Entry != NULL);
-    ZeroMem (Entry, sizeof (*Entry));
+    EntryMsr.Uint64 = AsmReadMsr64 (MSR_ENTRY_STRUCT);
+
+    if (EntryMsr.Bits.Enabled == 0) {
+      //
+      // Allocate reserved type so OS can use it.
+      //
+      Entry = AllocateReservedPages (EFI_SIZE_TO_PAGES (sizeof (*Entry)));
+      ASSERT (Entry != NULL);
+      ZeroMem (Entry, sizeof (*Entry));
+      EntryMsr.Uint64       = (UINT64)(UINTN)Entry;
+      EntryMsr.Bits.Enabled = 1;
+      AsmWriteMsr64 (MSR_ENTRY_STRUCT, EntryMsr.Uint64);
+    } else {
+      Entry = (ENTRY_STRUCT *)(UINTN)(EntryMsr.Bits.EntryStruct << 12);
+    }
 
     Entry->Features = BIT0;
     Entry->Rip      = CpuMpData->WakeupBufferHigh;
@@ -2061,9 +2073,6 @@ MpInitLibInitialize (
     Entry->Cr0      = AsmReadCr0 ();
     Entry->Cr4      = AsmReadCr4 ();
 
-    EntryMsr.Uint64       = (UINT64)(UINTN)Entry;
-    EntryMsr.Bits.Enabled = 1;
-    AsmWriteMsr64 (MSR_ENTRY_STRUCT, EntryMsr.Uint64);
     DEBUG ((DEBUG_ERROR, "MSR(MSR_ENTRY_STRUCT) = %lx\n", EntryMsr.Uint64));
   }
 
