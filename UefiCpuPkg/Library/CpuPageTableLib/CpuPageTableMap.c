@@ -215,6 +215,28 @@ PageTableLibSetPnle (
 }
 
 /**
+  Check if any Non-Reserved field of Mask is 0. When creating new page table or mapping not-present
+  range, we need to make sure all the non-reserved fields of input Mask are not 0.
+
+  @param[in] Mask  The mask used for attribute to check.
+**/
+RETURN_STATUS
+CheckMaskNonReservedBit (
+  IN     IA32_MAP_ATTRIBUTE  *Mask
+  )
+{
+  if ((Mask->Bits.Present == 0) || (Mask->Bits.ReadWrite == 0) || (Mask->Bits.UserSupervisor == 0) ||
+      (Mask->Bits.WriteThrough == 0) || (Mask->Bits.CacheDisabled == 0) || (Mask->Bits.Accessed == 0) ||
+      (Mask->Bits.Dirty == 0) || (Mask->Bits.Pat == 0) || (Mask->Bits.Global == 0) ||
+      (Mask->Bits.PageTableBaseAddress == 0) || (Mask->Bits.ProtectionKey == 0) || (Mask->Bits.Nx == 0))
+  {
+    return RETURN_INVALID_PARAMETER;
+  }
+
+  return RETURN_SUCCESS;
+}
+
+/**
   Update page table to map [LinearAddress, LinearAddress + Length) with specified attribute in the specified level.
 
   @param[in]      ParentPagingEntry The pointer to the page table entry to update.
@@ -259,6 +281,7 @@ PageTableLibMapInLevel (
   UINTN               Index;
   IA32_PAGING_ENTRY   *PagingEntry;
   UINTN               PagingEntryIndex;
+  UINTN               PagingEntryIndexLimit;
   IA32_PAGING_ENTRY   *CurrentPagingEntry;
   UINT64              RegionLength;
   UINT64              SubLength;
@@ -302,6 +325,15 @@ PageTableLibMapInLevel (
   //
 
   if (ParentPagingEntry->Pce.Present == 0) {
+    //
+    // [LinearAddress, LinearAddress + Length] contains not-present range, we need to
+    // make sure all the non-reserved fields of Mask are not 0.
+    //
+    Status = CheckMaskNonReservedBit (Mask);
+    if (RETURN_ERROR (Status)) {
+      return Status;
+    }
+
     //
     // The parent entry is CR3 or PML5E/PML4E/PDPTE/PDE.
     // It does NOT point to an existing page directory.
@@ -371,6 +403,23 @@ PageTableLibMapInLevel (
       }
     }
   } else {
+    PagingEntry           = (IA32_PAGING_ENTRY *)(UINTN)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (&ParentPagingEntry->Pnle);
+    PagingEntryIndexLimit = (UINTN)BitFieldRead64 (LinearAddress + Length - 1, BitStart, BitStart + 9 - 1);
+    for (Index = PagingEntryIndex; Index <= PagingEntryIndexLimit; Index++) {
+      if (PagingEntry[Index].Pce.Present == 0) {
+        //
+        // [LinearAddress, LinearAddress + Length] contains not-present range, we need to
+        // make sure all the non-reserved fields of Mask are not 0.
+        //
+        Status = CheckMaskNonReservedBit (Mask);
+        if (RETURN_ERROR (Status)) {
+          return Status;
+        }
+
+        break;
+      }
+    }
+
     //
     // It's a non-leaf entry
     //
@@ -418,7 +467,6 @@ PageTableLibMapInLevel (
         // Update child entries to use restrictive attribute inherited from parent.
         // e.g.: Set PDE[0-255].ReadWrite = 0
         //
-        PagingEntry = (IA32_PAGING_ENTRY *)(UINTN)IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (&ParentPagingEntry->Pnle);
         for (Index = 0; Index < 512; Index++) {
           if (PagingEntry[Index].Pce.Present == 0) {
             continue;
