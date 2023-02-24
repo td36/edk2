@@ -1258,6 +1258,126 @@ TestCaseManualChangeNx (
 }
 
 /**
+  Check if the input Mask is expected when creating new page table or map not-present
+  range in existing page table.
+
+  @param[in]  Context    [Optional] An optional parameter that enables:
+                         1) test-case reuse with varied parameters and
+                         2) test-case re-entry for Target tests that need a
+                         reboot.  This parameter is a VOID* and it is the
+                         responsibility of the test author to ensure that the
+                         contents are well understood by all test cases that may
+                         consume it.
+
+  @retval  UNIT_TEST_PASSED             The Unit test has completed and the test
+                                        case was successful.
+  @retval  UNIT_TEST_ERROR_TEST_FAILED  A test case assertion has failed.
+**/
+UNIT_TEST_STATUS
+EFIAPI
+TestCaseToCheckMapMask (
+  IN UNIT_TEST_CONTEXT  Context
+  )
+{
+  UINTN               PageTable;
+  PAGING_MODE         PagingMode;
+  VOID                *Buffer;
+  UINTN               PageTableBufferSize;
+  IA32_MAP_ATTRIBUTE  MapAttribute;
+  IA32_MAP_ATTRIBUTE  ExpectedMapAttribute;
+  IA32_MAP_ATTRIBUTE  MapMask;
+  RETURN_STATUS       Status;
+  IA32_MAP_ENTRY      *Map;
+  UINTN               MapCount;
+
+  PagingMode                = Paging4Level;
+  PageTableBufferSize       = 0;
+  PageTable                 = 0;
+  Buffer                    = NULL;
+  MapAttribute.Uint64       = 0;
+  MapAttribute.Bits.Present = 1;
+  MapMask.Uint64            = 0;
+  MapMask.Bits.Present      = 1;
+  //
+  // Create Page table to cover [0, 1G]. All fields of MapMask should be set.
+  //
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, 0, SIZE_1GB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_INVALID_PARAMETER);
+  MapMask.Uint64 = MAX_UINT64;
+  Status         = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, 0, SIZE_1GB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, 0, SIZE_1GB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Update Page table to cover [1G, 2G - 4K]. All fields of MapMask should be set.
+  //
+  PageTableBufferSize       = 0;
+  MapAttribute.Uint64       = SIZE_1GB;
+  MapAttribute.Bits.Present = 1;
+  MapMask.Uint64            = 0;
+  MapMask.Bits.Present      = 1;
+  Status                    = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, SIZE_1GB, SIZE_1GB - SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_INVALID_PARAMETER);
+  MapMask.Uint64 = MAX_UINT64;
+  Status         = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, SIZE_1GB, SIZE_1GB - SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Buffer = AllocatePages (EFI_SIZE_TO_PAGES (PageTableBufferSize));
+  Status = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, SIZE_1GB, SIZE_1GB - SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Update Page table to cover [2G - 4K, 2G]. All fields of MapMask should be set.
+  //
+  PageTableBufferSize       = 0;
+  MapAttribute.Uint64       = SIZE_2GB - SIZE_4KB;
+  MapAttribute.Bits.Present = 1;
+  MapMask.Uint64            = 0;
+  MapMask.Bits.Present      = 1;
+  Status                    = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, SIZE_2GB - SIZE_4KB, SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_INVALID_PARAMETER);
+  MapMask.Uint64 = MAX_UINT64;
+  Status         = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, SIZE_2GB - SIZE_4KB, SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // Update Page table to set [2G - 4K, 2G] as RW. Only need to set the MapMask.Bits.ReadWrite to 1.
+  //
+  PageTableBufferSize         = 0;
+  MapAttribute.Uint64         = 0;
+  MapAttribute.Bits.ReadWrite = 1;
+  MapMask.Uint64              = 0;
+  MapMask.Bits.ReadWrite      = 1;
+  Status                      = PageTableMap (&PageTable, PagingMode, Buffer, &PageTableBufferSize, SIZE_2GB - SIZE_4KB, SIZE_4KB, &MapAttribute, &MapMask);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  MapCount = 0;
+  Status   = PageTableParse (PageTable, PagingMode, NULL, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_BUFFER_TOO_SMALL);
+  Map    = AllocatePages (EFI_SIZE_TO_PAGES (MapCount* sizeof (IA32_MAP_ENTRY)));
+  Status = PageTableParse (PageTable, PagingMode, Map, &MapCount);
+  UT_ASSERT_EQUAL (Status, RETURN_SUCCESS);
+
+  //
+  // There should be two ranges [0, 2G-4k] with RW = 0 and [2G-4k, 2G] with RW = 1
+  //
+  UT_ASSERT_EQUAL (MapCount, 2);
+  UT_ASSERT_EQUAL (Map[0].LinearAddress, 0);
+  UT_ASSERT_EQUAL (Map[0].Length, SIZE_2GB - SIZE_4KB);
+  ExpectedMapAttribute.Uint64       =  0;
+  ExpectedMapAttribute.Bits.Present =  1;
+  UT_ASSERT_EQUAL (Map[0].Attribute.Uint64, ExpectedMapAttribute.Uint64);
+  UT_ASSERT_EQUAL (Map[1].LinearAddress, SIZE_2GB - SIZE_4KB);
+  UT_ASSERT_EQUAL (Map[1].Length, SIZE_4KB);
+  ExpectedMapAttribute.Uint64         =   SIZE_2GB - SIZE_4KB;
+  ExpectedMapAttribute.Bits.Present   = 1;
+  ExpectedMapAttribute.Bits.ReadWrite = 1;
+  UT_ASSERT_EQUAL (Map[1].Attribute.Uint64, ExpectedMapAttribute.Uint64);
+  return UNIT_TEST_PASSED;
+}
+
+/**
   Initialize the unit test framework, suite, and unit tests for the
   sample unit tests and run the unit tests.
 
@@ -1309,6 +1429,7 @@ UefiTestMain (
   AddTestCase (ManualTestCase, "Check PageTableRemapWritable", "Manual Test Case8", TestCaseForPageTableRemapWritable, NULL, NULL, NULL);
   AddTestCase (ManualTestCase, "Check for minimal size usage of PageTableRemapWritable", "Manual Test Case9", TestCaseForSizeUsageOfPageTableRemapWritable, NULL, NULL, NULL);
   AddTestCase (ManualTestCase, "Check for minimal size usage of PageTableRemapWritable with 4K page entry", "Manual Test Case9", TestCaseForSizeUsageOfPageTableRemapWritable4K, NULL, NULL, NULL);
+  AddTestCase (ManualTestCase, "Check MapMask when creating new page table or mapping not-present range", "Manual Test Case10", TestCaseToCheckMapMask, NULL, NULL, NULL);
   //
   // Populate the Random Test Cases.
   //
