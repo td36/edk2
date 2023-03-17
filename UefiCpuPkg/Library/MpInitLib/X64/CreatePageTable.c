@@ -37,6 +37,7 @@ CreatePageTable (
   MapAttribute.Bits.Present   = 1;
   MapAttribute.Bits.ReadWrite = 1;
 
+  MapMask.Uint64                       = 0;
   MapMask.Bits.PageTableBaseAddressLow = 1;
   MapMask.Bits.Present                 = 1;
   MapMask.Bits.ReadWrite               = 1;
