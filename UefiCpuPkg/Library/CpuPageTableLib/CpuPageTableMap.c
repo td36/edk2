@@ -355,6 +355,24 @@ PageTableLibMapInLevel (
     }
 
     //
+    // Use NOP attributes as the attribute of grand-parents because CPU will consider
+    // the actual attributes of grand-parents when determing the memory type.
+    //
+    PleBAttribute.Uint64 = PageTableLibGetPleBMapAttribute (&ParentPagingEntry->PleB, ParentAttribute);
+    if ((((IA32_MAP_ATTRIBUTE_ATTRIBUTES (&PleBAttribute) & IA32_MAP_ATTRIBUTE_ATTRIBUTES (Mask))
+          == (IA32_MAP_ATTRIBUTE_ATTRIBUTES (Attribute) & IA32_MAP_ATTRIBUTE_ATTRIBUTES (Mask)))) &&
+        (  ((Mask->Bits.PageTableBaseAddressLow == 0) && (Mask->Bits.PageTableBaseAddressHigh == 0))
+        || ((IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS (&PleBAttribute) + PagingEntryIndex * RegionLength)
+            == (IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS (Attribute) + Offset))))
+    {
+      //
+      // This function is called when the memory length is less than the region length of the parent level.
+      // No need to split the page when the attributes equal.
+      //
+      return RETURN_SUCCESS;
+    }
+
+    //
     // The parent entry is CR3 or PML5E/PML4E/PDPTE/PDE.
     // It does NOT point to an existing page directory.
     //
