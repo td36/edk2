@@ -344,65 +344,32 @@ PageTableLibMapInLevel (
   // ParentPagingEntry ONLY is deferenced for checking Present and MustBeOne bits
   // when Modify is FALSE.
   //
-
-  if (ParentPagingEntry->Pce.Present == 0) {
+  if ((ParentPagingEntry->Pce.Present == 0) || IsPle (ParentPagingEntry, Level + 1)) {
     //
-    // [LinearAddress, LinearAddress + Length] contains non-present range.
-    //
-    Status = IsAttributesAndMaskValidForNonPresentEntry (Attribute, Mask);
-    if (RETURN_ERROR (Status)) {
-      return Status;
-    }
-
-    //
-    // Use NOP attributes as the attribute of grand-parents because CPU will consider
-    // the actual attributes of grand-parents when determing the memory type.
-    //
-    PleBAttribute.Uint64 = PageTableLibGetPleBMapAttribute (&ParentPagingEntry->PleB, ParentAttribute);
-    if ((((IA32_MAP_ATTRIBUTE_ATTRIBUTES (&PleBAttribute) & IA32_MAP_ATTRIBUTE_ATTRIBUTES (Mask))
-          == (IA32_MAP_ATTRIBUTE_ATTRIBUTES (Attribute) & IA32_MAP_ATTRIBUTE_ATTRIBUTES (Mask)))) &&
-        (  ((Mask->Bits.PageTableBaseAddressLow == 0) && (Mask->Bits.PageTableBaseAddressHigh == 0))
-        || ((IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS (&PleBAttribute) + PagingEntryIndex * RegionLength)
-            == (IA32_MAP_ATTRIBUTE_PAGE_TABLE_BASE_ADDRESS (Attribute) + Offset))))
-    {
-      //
-      // This function is called when the memory length is less than the region length of the parent level.
-      // No need to split the page when the attributes equal.
-      //
-      return RETURN_SUCCESS;
-    }
-
-    //
-    // The parent entry is CR3 or PML5E/PML4E/PDPTE/PDE.
+    // When ParentPagingEntry is non-present, parent entry is CR3 or PML5E/PML4E/PDPTE/PDE.
     // It does NOT point to an existing page directory.
-    //
-    ASSERT (Buffer == NULL || *BufferSize >= SIZE_4KB);
-    CreateNew    = TRUE;
-    *BufferSize -= SIZE_4KB;
-
-    if (Modify) {
-      ParentPagingEntry->Uintn = (UINTN)Buffer + *BufferSize;
-      ZeroMem ((VOID *)ParentPagingEntry->Uintn, SIZE_4KB);
-      //
-      // Set default attribute bits for PML5E/PML4E/PDPTE/PDE.
-      //
-      PageTableLibSetPnle (&ParentPagingEntry->Pnle, &NopAttribute, &AllOneMask);
-    } else {
-      //
-      // Just make sure Present and MustBeZero (PageSize) bits are accurate.
-      //
-      OneOfPagingEntry.Pnle.Uint64 = 0;
-    }
-  } else if (IsPle (ParentPagingEntry, Level + 1)) {
-    //
-    // The parent entry is a PDPTE_1G or PDE_2M. Split to 2M or 4K pages.
+    // When ParentPagingEntry is present, parent entry is leaf PDPTE_1G or PDE_2M. Split to 2M or 4K pages.
     // Note: it's impossible the parent entry is a PTE_4K.
     //
+    OneOfPagingEntry.Pnle.Uint64 = 0;
+    PleBAttribute.Uint64         = PageTableLibGetPleBMapAttribute (&ParentPagingEntry->PleB, ParentAttribute);
+
+    if (ParentPagingEntry->Pce.Present == 0) {
+      //
+      // [LinearAddress, LinearAddress + Length] contains non-present range.
+      //
+      Status = IsAttributesAndMaskValidForNonPresentEntry (Attribute, Mask);
+      if (RETURN_ERROR (Status)) {
+        return Status;
+      }
+    } else {
+      PageTableLibSetPle (Level, &OneOfPagingEntry, 0, &PleBAttribute, &AllOneMask);
+    }
+
     //
     // Use NOP attributes as the attribute of grand-parents because CPU will consider
     // the actual attributes of grand-parents when determing the memory type.
     //
-    PleBAttribute.Uint64 = PageTableLibGetPleBMapAttribute (&ParentPagingEntry->PleB, ParentAttribute);
     if ((((IA32_MAP_ATTRIBUTE_ATTRIBUTES (&PleBAttribute) & IA32_MAP_ATTRIBUTE_ATTRIBUTES (Mask))
           == (IA32_MAP_ATTRIBUTE_ATTRIBUTES (Attribute) & IA32_MAP_ATTRIBUTE_ATTRIBUTES (Mask)))) &&
         (  ((Mask->Bits.PageTableBaseAddressLow == 0) && (Mask->Bits.PageTableBaseAddressHigh == 0))
@@ -419,17 +386,18 @@ PageTableLibMapInLevel (
     ASSERT (Buffer == NULL || *BufferSize >= SIZE_4KB);
     CreateNew    = TRUE;
     *BufferSize -= SIZE_4KB;
-    PageTableLibSetPle (Level, &OneOfPagingEntry, 0, &PleBAttribute, &AllOneMask);
     if (Modify) {
-      //
-      // Create 512 child-level entries that map to 2M/4K.
-      //
       PagingEntry = (IA32_PAGING_ENTRY *)((UINTN)Buffer + *BufferSize);
       ZeroMem (PagingEntry, SIZE_4KB);
 
-      for (SubOffset = 0, Index = 0; Index < 512; Index++) {
-        PagingEntry[Index].Uint64 = OneOfPagingEntry.Uint64 + SubOffset;
-        SubOffset                += RegionLength;
+      if (ParentPagingEntry->Pce.Present) {
+        //
+        // Create 512 child-level entries that map to 2M/4K.
+        //
+        for (SubOffset = 0, Index = 0; Index < 512; Index++) {
+          PagingEntry[Index].Uint64 = OneOfPagingEntry.Uint64 + SubOffset;
+          SubOffset                += RegionLength;
+        }
       }
 
       //
