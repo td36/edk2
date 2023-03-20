@@ -285,6 +285,7 @@ PageTableLibMapInLevel (
   IN     VOID                *Buffer,
   IN OUT INTN                *BufferSize,
   IN     IA32_PAGE_LEVEL     Level,
+  IN     IA32_PAGE_LEVEL     MaxLevel,
   IN     IA32_PAGE_LEVEL     MaxLeafLevel,
   IN     UINT64              LinearAddress,
   IN     UINT64              Length,
@@ -410,6 +411,7 @@ PageTableLibMapInLevel (
     }
   } else {
     //
+    // It's a present non-leaf entry.
     // If (LinearAddress + Length - 1) is not in the same ParentPagingEntry with (LinearAddress + Offset), then the remaining child PagingEntry
     // starting from PagingEntryIndex of ParentPagingEntry is all covered by [LinearAddress + Offset, LinearAddress + Length - 1].
     //
@@ -431,61 +433,63 @@ PageTableLibMapInLevel (
     }
 
     //
-    // It's a non-leaf entry
+    // Ignore the PaePdpte ParentPagingEntry.
     //
-    ChildAttribute.Uint64 = 0;
-    ChildMask.Uint64      = 0;
+    if (!((MaxLevel == 3) && (Level == 2))) {
+      ChildAttribute.Uint64 = 0;
+      ChildMask.Uint64      = 0;
 
-    //
-    // If the inheritable attributes in the parent entry conflicts with the requested attributes,
-    //   let the child entries take the parent attributes and
-    //   loosen the attribute in the parent entry
-    // E.g.: when PDPTE[0].ReadWrite = 0 but caller wants to map [0-2MB] as ReadWrite = 1 (PDE[0].ReadWrite = 1)
-    //            we need to change PDPTE[0].ReadWrite = 1 and let all PDE[0-255].ReadWrite = 0 in this step.
-    //       when PDPTE[0].Nx = 1 but caller wants to map [0-2MB] as Nx = 0 (PDT[0].Nx = 0)
-    //            we need to change PDPTE[0].Nx = 0 and let all PDE[0-255].Nx = 1 in this step.
-    if ((ParentPagingEntry->Pnle.Bits.ReadWrite == 0) && (Mask->Bits.ReadWrite == 1) && (Attribute->Bits.ReadWrite == 1)) {
-      if (Modify) {
-        ParentPagingEntry->Pnle.Bits.ReadWrite = 1;
+      //
+      // If the inheritable attributes in the parent entry conflicts with the requested attributes,
+      //   let the child entries take the parent attributes and
+      //   loosen the attribute in the parent entry
+      // E.g.: when PDPTE[0].ReadWrite = 0 but caller wants to map [0-2MB] as ReadWrite = 1 (PDE[0].ReadWrite = 1)
+      //            we need to change PDPTE[0].ReadWrite = 1 and let all PDE[0-255].ReadWrite = 0 in this step.
+      //       when PDPTE[0].Nx = 1 but caller wants to map [0-2MB] as Nx = 0 (PDT[0].Nx = 0)
+      //            we need to change PDPTE[0].Nx = 0 and let all PDE[0-255].Nx = 1 in this step.
+      if ((ParentPagingEntry->Pnle.Bits.ReadWrite == 0) && (Mask->Bits.ReadWrite == 1) && (Attribute->Bits.ReadWrite == 1)) {
+        if (Modify) {
+          ParentPagingEntry->Pnle.Bits.ReadWrite = 1;
+        }
+
+        ChildAttribute.Bits.ReadWrite = 0;
+        ChildMask.Bits.ReadWrite      = 1;
       }
 
-      ChildAttribute.Bits.ReadWrite = 0;
-      ChildMask.Bits.ReadWrite      = 1;
-    }
+      if ((ParentPagingEntry->Pnle.Bits.UserSupervisor == 0) && (Mask->Bits.UserSupervisor == 1) && (Attribute->Bits.UserSupervisor == 1)) {
+        if (Modify) {
+          ParentPagingEntry->Pnle.Bits.UserSupervisor = 1;
+        }
 
-    if ((ParentPagingEntry->Pnle.Bits.UserSupervisor == 0) && (Mask->Bits.UserSupervisor == 1) && (Attribute->Bits.UserSupervisor == 1)) {
-      if (Modify) {
-        ParentPagingEntry->Pnle.Bits.UserSupervisor = 1;
+        ChildAttribute.Bits.UserSupervisor = 0;
+        ChildMask.Bits.UserSupervisor      = 1;
       }
 
-      ChildAttribute.Bits.UserSupervisor = 0;
-      ChildMask.Bits.UserSupervisor      = 1;
-    }
+      if ((ParentPagingEntry->Pnle.Bits.Nx == 1) && (Mask->Bits.Nx == 1) && (Attribute->Bits.Nx == 0)) {
+        if (Modify) {
+          ParentPagingEntry->Pnle.Bits.Nx = 0;
+        }
 
-    if ((ParentPagingEntry->Pnle.Bits.Nx == 1) && (Mask->Bits.Nx == 1) && (Attribute->Bits.Nx == 0)) {
-      if (Modify) {
-        ParentPagingEntry->Pnle.Bits.Nx = 0;
+        ChildAttribute.Bits.Nx = 1;
+        ChildMask.Bits.Nx      = 1;
       }
 
-      ChildAttribute.Bits.Nx = 1;
-      ChildMask.Bits.Nx      = 1;
-    }
+      if (ChildMask.Uint64 != 0) {
+        if (Modify) {
+          //
+          // Update child entries to use restrictive attribute inherited from parent.
+          // e.g.: Set PDE[0-255].ReadWrite = 0
+          //
+          for (Index = 0; Index < 512; Index++) {
+            if (PagingEntry[Index].Pce.Present == 0) {
+              continue;
+            }
 
-    if (ChildMask.Uint64 != 0) {
-      if (Modify) {
-        //
-        // Update child entries to use restrictive attribute inherited from parent.
-        // e.g.: Set PDE[0-255].ReadWrite = 0
-        //
-        for (Index = 0; Index < 512; Index++) {
-          if (PagingEntry[Index].Pce.Present == 0) {
-            continue;
-          }
-
-          if (IsPle (&PagingEntry[Index], Level)) {
-            PageTableLibSetPle (Level, &PagingEntry[Index], 0, &ChildAttribute, &ChildMask);
-          } else {
-            PageTableLibSetPnle (&PagingEntry[Index].Pnle, &ChildAttribute, &ChildMask);
+            if (IsPle (&PagingEntry[Index], Level)) {
+              PageTableLibSetPle (Level, &PagingEntry[Index], 0, &ChildAttribute, &ChildMask);
+            } else {
+              PageTableLibSetPnle (&PagingEntry[Index].Pnle, &ChildAttribute, &ChildMask);
+            }
           }
         }
       }
@@ -499,7 +503,7 @@ PageTableLibMapInLevel (
   RegionMask  = RegionLength - 1;
   RegionStart = (LinearAddress + Offset) & ~RegionMask;
 
-  ParentAttribute->Uint64 = PageTableLibGetPnleMapAttribute (&ParentPagingEntry->Pnle, ParentAttribute);
+  ParentAttribute->Uint64 = PageTableLibGetPnleMapAttribute (&ParentPagingEntry->Pnle, ParentAttribute, MaxLevel, Level + 1);
 
   //
   // Apply the attribute.
@@ -573,6 +577,7 @@ PageTableLibMapInLevel (
                  Buffer,
                  BufferSize,
                  Level - 1,
+                 MaxLevel,
                  MaxLeafLevel,
                  LinearAddress,
                  Length,
@@ -736,6 +741,7 @@ PageTableMap (
                    NULL,
                    &RequiredSize,
                    MaxLevel,
+                   MaxLevel,
                    MaxLeafLevel,
                    LinearAddress,
                    Length,
@@ -769,6 +775,7 @@ PageTableMap (
              TRUE,
              Buffer,
              (INTN *)BufferSize,
+             MaxLevel,
              MaxLevel,
              MaxLeafLevel,
              LinearAddress,

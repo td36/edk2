@@ -219,13 +219,17 @@ PageTableLibGetPleBMapAttribute (
 
   @param[in] Pnle               Pointer to a non-leaf page table entry.
   @param[in] ParentMapAttribute Pointer to the parent attribute.
+  @param[in] MaxLevel           MaxLevel of the page table.
+  @param[in] Level              Page level. Could be 5, 4, 3, 2.
 
   @return Attribute of the non-leaf page table entry.
 **/
 UINT64
 PageTableLibGetPnleMapAttribute (
   IN IA32_PAGE_NON_LEAF_ENTRY  *Pnle,
-  IN IA32_MAP_ATTRIBUTE        *ParentMapAttribute
+  IN IA32_MAP_ATTRIBUTE        *ParentMapAttribute,
+  IN     UINTN                 MaxLevel,
+  IN     UINTN                 Level
   );
 
 #endif

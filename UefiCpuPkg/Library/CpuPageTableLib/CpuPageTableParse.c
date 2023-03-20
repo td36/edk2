@@ -85,26 +85,37 @@ PageTableLibGetPte4KMapAttribute (
 
   @param[in] Pnle               Pointer to a non-leaf page table entry.
   @param[in] ParentMapAttribute Pointer to the parent attribute.
+  @param[in] MaxLevel           MaxLevel of the page table.
+  @param[in] Level              Page level. Could be 5, 4, 3, 2.
 
   @return Attribute of the non-leaf page table entry.
 **/
 UINT64
 PageTableLibGetPnleMapAttribute (
   IN IA32_PAGE_NON_LEAF_ENTRY  *Pnle,
-  IN IA32_MAP_ATTRIBUTE        *ParentMapAttribute
+  IN IA32_MAP_ATTRIBUTE        *ParentMapAttribute,
+  IN     UINTN                 MaxLevel,
+  IN     UINTN                 Level
   )
 {
   IA32_MAP_ATTRIBUTE  MapAttribute;
 
-  MapAttribute.Uint64 = Pnle->Uint64;
+  MapAttribute.Uint64             = Pnle->Uint64;
+  MapAttribute.Bits.Present       = ParentMapAttribute->Bits.Present & Pnle->Bits.Present;
+  MapAttribute.Bits.WriteThrough  = Pnle->Bits.WriteThrough;
+  MapAttribute.Bits.CacheDisabled = Pnle->Bits.CacheDisabled;
+  MapAttribute.Bits.Accessed      = Pnle->Bits.Accessed;
 
-  MapAttribute.Bits.Present        = ParentMapAttribute->Bits.Present & Pnle->Bits.Present;
-  MapAttribute.Bits.ReadWrite      = ParentMapAttribute->Bits.ReadWrite & Pnle->Bits.ReadWrite;
-  MapAttribute.Bits.UserSupervisor = ParentMapAttribute->Bits.UserSupervisor & Pnle->Bits.UserSupervisor;
-  MapAttribute.Bits.Nx             = ParentMapAttribute->Bits.Nx | Pnle->Bits.Nx;
-  MapAttribute.Bits.WriteThrough   = Pnle->Bits.WriteThrough;
-  MapAttribute.Bits.CacheDisabled  = Pnle->Bits.CacheDisabled;
-  MapAttribute.Bits.Accessed       = Pnle->Bits.Accessed;
+  if ((MaxLevel == 3) && (MaxLevel == Level)) {
+    MapAttribute.Bits.ReadWrite      = 1;
+    MapAttribute.Bits.UserSupervisor = 1;
+    MapAttribute.Bits.Nx             = 0;
+  } else {
+    MapAttribute.Bits.ReadWrite      = ParentMapAttribute->Bits.ReadWrite & Pnle->Bits.ReadWrite;
+    MapAttribute.Bits.UserSupervisor = ParentMapAttribute->Bits.UserSupervisor & Pnle->Bits.UserSupervisor;
+    MapAttribute.Bits.Nx             = ParentMapAttribute->Bits.Nx | Pnle->Bits.Nx;
+  }
+
   return MapAttribute.Uint64;
 }
 
@@ -157,6 +168,7 @@ IsPle (
 VOID
 PageTableLibParsePnle (
   IN     UINT64              PageTableBaseAddress,
+  IN     UINTN               MaxLevel,
   IN     UINTN               Level,
   IN     UINT64              RegionStart,
   IN     IA32_MAP_ATTRIBUTE  *ParentMapAttribute,
@@ -224,9 +236,10 @@ PageTableLibParsePnle (
         (*MapCount)++;
       }
     } else {
-      MapAttribute.Uint64 = PageTableLibGetPnleMapAttribute (&PagingEntry[Index].Pnle, ParentMapAttribute);
+      MapAttribute.Uint64 = PageTableLibGetPnleMapAttribute (&PagingEntry[Index].Pnle, ParentMapAttribute, MaxLevel, Level);
       PageTableLibParsePnle (
         IA32_PNLE_PAGE_TABLE_BASE_ADDRESS (&PagingEntry[Index].Pnle),
+        MaxLevel,
         Level - 1,
         RegionStart,
         &MapAttribute,
@@ -319,7 +332,7 @@ PageTableParse (
   MapCapacity = *MapCount;
   *MapCount   = 0;
   LastEntry   = NULL;
-  PageTableLibParsePnle ((UINT64)PageTable, MaxLevel, 0, &NopAttribute, Map, MapCount, MapCapacity, &LastEntry, &OneEntry);
+  PageTableLibParsePnle ((UINT64)PageTable, MaxLevel, MaxLevel, 0, &NopAttribute, Map, MapCount, MapCapacity, &LastEntry, &OneEntry);
 
   if (*MapCount > MapCapacity) {
     return RETURN_BUFFER_TOO_SMALL;
