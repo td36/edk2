@@ -317,31 +317,32 @@ PageTableLibMapInLevel (
   OUT    BOOLEAN             *IsModified
   )
 {
-  RETURN_STATUS       Status;
-  UINTN               BitStart;
-  UINTN               Index;
-  IA32_PAGING_ENTRY   *PagingEntry;
-  UINTN               PagingEntryIndex;
-  UINTN               PagingEntryIndexEnd;
-  IA32_PAGING_ENTRY   *CurrentPagingEntry;
-  UINT64              RegionLength;
-  UINT64              SubLength;
-  UINT64              SubOffset;
-  UINT64              RegionMask;
-  UINT64              RegionStart;
-  IA32_MAP_ATTRIBUTE  AllOneMask;
-  IA32_MAP_ATTRIBUTE  PleBAttribute;
-  IA32_MAP_ATTRIBUTE  NopAttribute;
-  BOOLEAN             CreateNew;
-  IA32_PAGING_ENTRY   OneOfPagingEntry;
-  IA32_MAP_ATTRIBUTE  ChildAttribute;
-  IA32_MAP_ATTRIBUTE  ChildMask;
-  IA32_MAP_ATTRIBUTE  CurrentMask;
-  IA32_MAP_ATTRIBUTE  LocalParentAttribute;
-  UINT64              PhysicalAddrInEntry;
-  UINT64              PhysicalAddrInAttr;
-  IA32_PAGING_ENTRY   OriginalParentPagingEntry;
-  IA32_PAGING_ENTRY   OriginalCurrentPagingEntry;
+  RETURN_STATUS               Status;
+  UINTN                       BitStart;
+  UINTN                       Index;
+  IA32_PAGING_ENTRY           *PagingEntry;
+  UINTN                       PagingEntryIndex;
+  UINTN                       PagingEntryIndexEnd;
+  IA32_PAGING_ENTRY           *CurrentPagingEntry;
+  UINT64                      RegionLength;
+  UINT64                      SubLength;
+  UINT64                      SubOffset;
+  UINT64                      RegionMask;
+  UINT64                      RegionStart;
+  IA32_MAP_ATTRIBUTE          AllOneMask;
+  IA32_MAP_ATTRIBUTE          PleBAttribute;
+  IA32_MAP_ATTRIBUTE          NopAttribute;
+  BOOLEAN                     CreateNew;
+  IA32_PAGING_ENTRY           OneOfPagingEntry;
+  IA32_MAP_ATTRIBUTE          ChildAttribute;
+  IA32_MAP_ATTRIBUTE          ChildMask;
+  IA32_MAP_ATTRIBUTE          CurrentMask;
+  IA32_MAP_ATTRIBUTE          LocalParentAttribute;
+  UINT64                      PhysicalAddrInEntry;
+  UINT64                      PhysicalAddrInAttr;
+  IA32_PAGING_ENTRY           OriginalParentPagingEntry;
+  IA32_PAGING_ENTRY           OriginalCurrentPagingEntry;
+  volatile IA32_PAGING_ENTRY  TempParentPagingEntry;
 
   ASSERT (Level != 0);
   ASSERT ((Attribute != NULL) && (Mask != NULL));
@@ -359,6 +360,7 @@ PageTableLibMapInLevel (
 
   OriginalParentPagingEntry.Uint64 = ParentPagingEntry->Uint64;
   OneOfPagingEntry.Uint64          = 0;
+  TempParentPagingEntry.Uint64     = 0;
   //
   // RegionLength: 256T (1 << 48) 512G (1 << 39), 1G (1 << 30), 2M (1 << 21) or 4K (1 << 12).
   //
@@ -433,6 +435,9 @@ PageTableLibMapInLevel (
         }
       }
 
+      volatile unsigned long long u64;
+      u64 = 0x1234567812345678;
+
       //
       // Set NOP attributes
       // Note: Should NOT inherit the attributes from the original entry because a zero RW bit
@@ -441,8 +446,9 @@ PageTableLibMapInLevel (
       // Non-leaf entry doesn't have PAT bit. So use ~IA32_PE_BASE_ADDRESS_MASK_40 is to make sure PAT bit
       // (bit12) in original big-leaf entry is not assigned to PageTableBaseAddress field of non-leaf entry.
       //
-      PageTableLibSetPnle (&ParentPagingEntry->Pnle, &NopAttribute, &AllOneMask);
-      ParentPagingEntry->Uint64 = ((UINTN)(VOID *)PagingEntry) | (ParentPagingEntry->Uint64 & (~IA32_PE_BASE_ADDRESS_MASK_40));
+      PageTableLibSetPnle (&TempParentPagingEntry.Pnle, &NopAttribute, &AllOneMask);
+      TempParentPagingEntry.Uint64 = ((UINTN)(VOID *)PagingEntry) | (TempParentPagingEntry.Uint64 & (~IA32_PE_BASE_ADDRESS_MASK_40));
+      ParentPagingEntry->Uint64 = TempParentPagingEntry.Uint64;
     }
   } else {
     //

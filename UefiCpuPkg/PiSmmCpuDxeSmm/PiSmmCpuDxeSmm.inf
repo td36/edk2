@@ -162,3 +162,6 @@
 
 [UserExtensions.TianoCore."ExtraFiles"]
   PiSmmCpuDxeSmmExtra.uni
+
+[BuildOptions]
+  *_*_*_CC_FLAGS = /FAcs
