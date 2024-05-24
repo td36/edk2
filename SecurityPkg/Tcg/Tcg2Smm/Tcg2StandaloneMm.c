@@ -9,7 +9,7 @@
 
   PhysicalPresenceCallback() and MemoryClearCallback() will receive untrusted input and do some check.
 
-Copyright (c) 2015 - 2018, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2015 - 2024, Intel Corporation. All rights reserved.<BR>
 Copyright (c) Microsoft Corporation.
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -17,6 +17,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 #include "Tcg2Smm.h"
 #include <Library/StandaloneMmMemLib.h>
+#include <Library/HobLib.h>
 
 /**
   Notify the system that the SMM variable driver is ready.
@@ -45,6 +46,33 @@ IsBufferOutsideMmValid (
   )
 {
   return MmIsBufferOutsideMmValid (Buffer, Length);
+}
+
+/**
+  This function is compare the Tpm instance.
+
+  @retval TRUE  PcdTpmInstanceGuid is equal to gEfiTpmDeviceInstanceTpm20DtpmGuid.
+  @retval FALSE PcdTpmInstanceGuid is not equal to gEfiTpmDeviceInstanceTpm20DtpmGuid.
+**/
+BOOLEAN
+CompareTpmInstance (
+  VOID
+  )
+{
+  VOID  *GuidHob;
+
+  GuidHob = GetFirstGuidHob (&gEdkiiTpmInstanceHobGuid);
+  if (GuidHob != NULL) {
+    if (CompareGuid ((EFI_GUID *)GET_GUID_HOB_DATA (GuidHob), &gEfiTpmDeviceInstanceTpm20DtpmGuid)) {
+      return TRUE;
+    }
+
+    DEBUG ((EFI_D_ERROR, "No TPM2 DTPM instance required! - %g\n", (EFI_GUID *)GET_GUID_HOB_DATA (GuidHob)));
+  } else {
+    DEBUG ((EFI_D_ERROR, "No gEdkiiTpmInstanceHobGuid!\n"));
+  }
+
+  return FALSE;
 }
 
 /**
