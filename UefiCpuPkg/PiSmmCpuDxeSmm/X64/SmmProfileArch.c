@@ -117,7 +117,6 @@ AcquirePage (
   @param  PFAddress           The memory address which caused page fault exception.
   @param  CpuIndex            The index of the processor.
   @param  ErrorCode           The Error code of exception.
-  @param  IsValidPFAddress    The flag indicates if SMM profile data need be added.
 
 **/
 VOID
@@ -125,8 +124,7 @@ RestorePageTableAbove4G (
   UINT64   *PageTable,
   UINT64   PFAddress,
   UINTN    CpuIndex,
-  UINTN    ErrorCode,
-  BOOLEAN  *IsValidPFAddress
+  UINTN    ErrorCode
   )
 {
   UINTN     PTIndex;
@@ -138,7 +136,7 @@ RestorePageTableAbove4G (
   IA32_CR4  Cr4;
   BOOLEAN   Enable5LevelPaging;
 
-  ASSERT ((PageTable != NULL) && (IsValidPFAddress != NULL));
+  ASSERT (PageTable != NULL);
 
   Cr4.UintN          = AsmReadCr4 ();
   Enable5LevelPaging = (BOOLEAN)(Cr4.Bits.LA57 == 1);
@@ -207,15 +205,6 @@ RestorePageTableAbove4G (
   // If page entry does not existed in page table at all, create a new entry.
   //
   if (!Existed) {
-    if (IsAddressValid (PFAddress, &Nx)) {
-      //
-      // If page fault address above 4GB is in protected range but it causes a page fault exception,
-      // Will create a page entry for this page fault address, make page table entry as present/rw and execution-disable.
-      // this access is not saved into SMM profile data.
-      //
-      *IsValidPFAddress = TRUE;
-    }
-
     //
     // Create one entry in page table for page fault address.
     //

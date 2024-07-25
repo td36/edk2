@@ -58,7 +58,6 @@ typedef struct _PEBS_RECORD {
   @param  PFAddress           The memory address which caused page fault exception.
   @param  CpuIndex            The index of the processor.
   @param  ErrorCode           The Error code of exception.
-  @param  IsValidPFAddress    The flag indicates if SMM profile data need be added.
 
 **/
 VOID
@@ -66,8 +65,7 @@ RestorePageTableAbove4G (
   UINT64   *PageTable,
   UINT64   PFAddress,
   UINTN    CpuIndex,
-  UINTN    ErrorCode,
-  BOOLEAN  *IsValidPFAddress
+  UINTN    ErrorCode
   );
 
 /**

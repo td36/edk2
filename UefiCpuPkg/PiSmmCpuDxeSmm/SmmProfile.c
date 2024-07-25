@@ -1318,7 +1318,6 @@ SmmProfilePFHandler (
   UINT64                      InstructionAddress;
   UINTN                       MaxEntryNumber;
   UINTN                       CurrentEntryNumber;
-  BOOLEAN                     IsValidPFAddress;
   SMM_PROFILE_ENTRY           *SmmProfileEntry;
   UINT64                      SmiCommand;
   EFI_STATUS                  Status;
@@ -1337,10 +1336,9 @@ SmmProfilePFHandler (
     DisableBTS ();
   }
 
-  IsValidPFAddress = FALSE;
-  PageTable        = (UINT64 *)AsmReadCr3 ();
-  PFAddress        = AsmReadCr2 ();
-  CpuIndex         = GetCpuIndex ();
+  PageTable = (UINT64 *)AsmReadCr3 ();
+  PFAddress = AsmReadCr2 ();
+  CpuIndex  = GetCpuIndex ();
 
   //
   // Memory operation cross pages, like "rep mov" instruction, will cause
@@ -1353,91 +1351,89 @@ SmmProfilePFHandler (
     if (RestoreAddress <= 0xFFFFFFFF) {
       RestorePageTableBelow4G (PageTable, RestoreAddress, CpuIndex, ErrorCode);
     } else {
-      RestorePageTableAbove4G (PageTable, RestoreAddress, CpuIndex, ErrorCode, &IsValidPFAddress);
+      RestorePageTableAbove4G (PageTable, RestoreAddress, CpuIndex, ErrorCode);
     }
 
     RestoreAddress += EFI_PAGE_SIZE;
     RestorePageNumber--;
   }
 
-  if (!IsValidPFAddress) {
-    InstructionAddress = Rip;
-    if (((ErrorCode & IA32_PF_EC_ID) != 0) && (mBtsSupported)) {
+  InstructionAddress = Rip;
+  if (((ErrorCode & IA32_PF_EC_ID) != 0) && (mBtsSupported)) {
+    //
+    // If it is instruction fetch failure, get the correct IP from BTS.
+    //
+    InstructionAddress = GetSourceFromDestinationOnBts (CpuIndex, Rip);
+    if (InstructionAddress == 0) {
       //
-      // If it is instruction fetch failure, get the correct IP from BTS.
+      // It indicates the instruction which caused page fault is not a jump instruction,
+      // set instruction address same as the page fault address.
       //
-      InstructionAddress = GetSourceFromDestinationOnBts (CpuIndex, Rip);
-      if (InstructionAddress == 0) {
-        //
-        // It indicates the instruction which caused page fault is not a jump instruction,
-        // set instruction address same as the page fault address.
-        //
-        InstructionAddress = PFAddress;
-      }
+      InstructionAddress = PFAddress;
+    }
+  }
+
+  //
+  // Indicate it is not software SMI
+  //
+  SmiCommand = 0xFFFFFFFFFFFFFFFFULL;
+  for (Index = 0; Index < gSmst->NumberOfCpus; Index++) {
+    Status = SmmReadSaveState (&mSmmCpu, sizeof (IoInfo), EFI_SMM_SAVE_STATE_REGISTER_IO, Index, &IoInfo);
+    if (EFI_ERROR (Status)) {
+      continue;
     }
 
-    //
-    // Indicate it is not software SMI
-    //
-    SmiCommand = 0xFFFFFFFFFFFFFFFFULL;
-    for (Index = 0; Index < gSmst->NumberOfCpus; Index++) {
-      Status = SmmReadSaveState (&mSmmCpu, sizeof (IoInfo), EFI_SMM_SAVE_STATE_REGISTER_IO, Index, &IoInfo);
-      if (EFI_ERROR (Status)) {
-        continue;
-      }
+    if (IoInfo.IoPort == mSmiCommandPort) {
+      //
+      // A software SMI triggered by SMI command port has been found, get SmiCommand from SMI command port.
+      //
+      SoftSmiValue = IoRead8 (mSmiCommandPort);
+      SmiCommand   = (UINT64)SoftSmiValue;
+      break;
+    }
+  }
 
-      if (IoInfo.IoPort == mSmiCommandPort) {
-        //
-        // A software SMI triggered by SMI command port has been found, get SmiCommand from SMI command port.
-        //
-        SoftSmiValue = IoRead8 (mSmiCommandPort);
-        SmiCommand   = (UINT64)SoftSmiValue;
-        break;
-      }
+  SmmProfileEntry = (SMM_PROFILE_ENTRY *)(UINTN)(mSmmProfileBase + 1);
+  //
+  // Check if there is already a same entry in profile data.
+  //
+  for (Index = 0; Index < (UINTN)mSmmProfileBase->CurDataEntries; Index++) {
+    if ((SmmProfileEntry[Index].ErrorCode   == (UINT64)ErrorCode) &&
+        (SmmProfileEntry[Index].Address     == PFAddress) &&
+        (SmmProfileEntry[Index].CpuNum      == (UINT64)CpuIndex) &&
+        (SmmProfileEntry[Index].Instruction == InstructionAddress) &&
+        (SmmProfileEntry[Index].SmiCmd      == SmiCommand))
+    {
+      //
+      // Same record exist, need not save again.
+      //
+      break;
+    }
+  }
+
+  if (Index == mSmmProfileBase->CurDataEntries) {
+    CurrentEntryNumber = (UINTN)mSmmProfileBase->CurDataEntries;
+    MaxEntryNumber     = (UINTN)mSmmProfileBase->MaxDataEntries;
+    if (FeaturePcdGet (PcdCpuSmmProfileRingBuffer)) {
+      CurrentEntryNumber = CurrentEntryNumber % MaxEntryNumber;
     }
 
-    SmmProfileEntry = (SMM_PROFILE_ENTRY *)(UINTN)(mSmmProfileBase + 1);
-    //
-    // Check if there is already a same entry in profile data.
-    //
-    for (Index = 0; Index < (UINTN)mSmmProfileBase->CurDataEntries; Index++) {
-      if ((SmmProfileEntry[Index].ErrorCode   == (UINT64)ErrorCode) &&
-          (SmmProfileEntry[Index].Address     == PFAddress) &&
-          (SmmProfileEntry[Index].CpuNum      == (UINT64)CpuIndex) &&
-          (SmmProfileEntry[Index].Instruction == InstructionAddress) &&
-          (SmmProfileEntry[Index].SmiCmd      == SmiCommand))
-      {
-        //
-        // Same record exist, need not save again.
-        //
-        break;
-      }
-    }
-
-    if (Index == mSmmProfileBase->CurDataEntries) {
-      CurrentEntryNumber = (UINTN)mSmmProfileBase->CurDataEntries;
-      MaxEntryNumber     = (UINTN)mSmmProfileBase->MaxDataEntries;
-      if (FeaturePcdGet (PcdCpuSmmProfileRingBuffer)) {
-        CurrentEntryNumber = CurrentEntryNumber % MaxEntryNumber;
-      }
-
-      if (CurrentEntryNumber < MaxEntryNumber) {
-        //
-        // Log the new entry
-        //
-        SmmProfileEntry[CurrentEntryNumber].SmiNum      = mSmmProfileBase->NumSmis;
-        SmmProfileEntry[CurrentEntryNumber].ErrorCode   = (UINT64)ErrorCode;
-        SmmProfileEntry[CurrentEntryNumber].ApicId      = (UINT64)GetApicId ();
-        SmmProfileEntry[CurrentEntryNumber].CpuNum      = (UINT64)CpuIndex;
-        SmmProfileEntry[CurrentEntryNumber].Address     = PFAddress;
-        SmmProfileEntry[CurrentEntryNumber].Instruction = InstructionAddress;
-        SmmProfileEntry[CurrentEntryNumber].SmiCmd      = SmiCommand;
-        //
-        // Update current entry index and data size in the header.
-        //
-        mSmmProfileBase->CurDataEntries++;
-        mSmmProfileBase->CurDataSize = MultU64x64 (mSmmProfileBase->CurDataEntries, sizeof (SMM_PROFILE_ENTRY));
-      }
+    if (CurrentEntryNumber < MaxEntryNumber) {
+      //
+      // Log the new entry
+      //
+      SmmProfileEntry[CurrentEntryNumber].SmiNum      = mSmmProfileBase->NumSmis;
+      SmmProfileEntry[CurrentEntryNumber].ErrorCode   = (UINT64)ErrorCode;
+      SmmProfileEntry[CurrentEntryNumber].ApicId      = (UINT64)GetApicId ();
+      SmmProfileEntry[CurrentEntryNumber].CpuNum      = (UINT64)CpuIndex;
+      SmmProfileEntry[CurrentEntryNumber].Address     = PFAddress;
+      SmmProfileEntry[CurrentEntryNumber].Instruction = InstructionAddress;
+      SmmProfileEntry[CurrentEntryNumber].SmiCmd      = SmiCommand;
+      //
+      // Update current entry index and data size in the header.
+      //
+      mSmmProfileBase->CurDataEntries++;
+      mSmmProfileBase->CurDataSize = MultU64x64 (mSmmProfileBase->CurDataEntries, sizeof (SMM_PROFILE_ENTRY));
     }
   }
 
