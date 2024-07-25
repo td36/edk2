@@ -978,7 +978,9 @@ SmiPFHandler (
       SystemContext.SystemContextX64->ExceptionData
       );
   } else {
-    SmiDefaultPFHandler ();
+    DumpCpuContext (InterruptType, SystemContext);
+    CpuDeadLoop ();
+    goto Exit;
   }
 
 Exit:
