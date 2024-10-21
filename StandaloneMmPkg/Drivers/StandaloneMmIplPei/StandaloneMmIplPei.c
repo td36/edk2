@@ -505,6 +505,8 @@ ExecuteMmCoreFromMmram (
   STANDALONE_MM_FOUNDATION_ENTRY_POINT  Entry;
   EFI_MMRAM_HOB_DESCRIPTOR_BLOCK        *Block;
 
+  DEBUG ((DEBUG_INFO, "ExecuteMmCoreFromMmram: 0x%x\n", (UINTN)ExecuteMmCoreFromMmram));
+
   MmFvBase = 0;
   MmFvSize = 0;
   //
@@ -517,7 +519,33 @@ ExecuteMmCoreFromMmram (
   // Unblock the MM FV range to be accessible from inside MM
   //
   if ((MmFvBase != 0) && (MmFvSize != 0)) {
-    Status = MmUnblockMemoryRequest (MmFvBase, EFI_SIZE_TO_PAGES (MmFvSize));
+    DEBUG ((DEBUG_INFO, "MmFv RANGE  - [0x%lx, 0x%lx]\n", MmFvBase, MmFvBase+EFI_SIZE_TO_PAGES (MmFvSize)));
+    EFI_HOB_MEMORY_ALLOCATION  *MemoryAllocationHob;
+    EFI_PEI_HOB_POINTERS       Hob;
+
+    Hob.Raw             = GetFirstHob (EFI_HOB_TYPE_MEMORY_ALLOCATION);
+    MemoryAllocationHob = Hob.MemoryAllocation;
+    while (MemoryAllocationHob != NULL) {
+      DEBUG ((
+        DEBUG_INFO,
+        "MemoryAllocationHob RANGE  - [0x%lx, 0x%lx], 0x%x\n",
+        MemoryAllocationHob->AllocDescriptor.MemoryBaseAddress,
+        MemoryAllocationHob->AllocDescriptor.MemoryBaseAddress +
+        MemoryAllocationHob->AllocDescriptor.MemoryLength,
+        MemoryAllocationHob->AllocDescriptor.MemoryType
+        ));
+
+      if ((MmFvBase < MemoryAllocationHob->AllocDescriptor.MemoryBaseAddress + MemoryAllocationHob->AllocDescriptor.MemoryLength) &&
+          (MmFvBase+EFI_SIZE_TO_PAGES (MmFvSize) > MemoryAllocationHob->AllocDescriptor.MemoryBaseAddress))
+      {
+        DEBUG ((DEBUG_INFO, "The HOB type is 0x%x\n", MemoryAllocationHob->AllocDescriptor.MemoryType));
+        DEBUG ((DEBUG_INFO, "EfiACPIMemoryNVS is 0x%x\n", EfiACPIMemoryNVS));
+      }
+
+      MemoryAllocationHob = GetNextHob (EFI_HOB_TYPE_MEMORY_ALLOCATION, GET_NEXT_HOB (MemoryAllocationHob));
+    }
+
+    Status = MmUnblockMemoryRequest (0x840000, EFI_SIZE_TO_PAGES (0x1520000 - 0x840000));
     ASSERT_EFI_ERROR (Status);
   }
 
